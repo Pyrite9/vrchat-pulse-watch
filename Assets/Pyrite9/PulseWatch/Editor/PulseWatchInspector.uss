@@ -1,0 +1,242 @@
+/* Pyrite9 Pulse Watch — PulseWatch 인스펙터 (디자인 'Assay', Drink Can DrinkCanInspector.uss를 옮기고 접두만 dc- → pw-)
+   바탕 #15171C · 글자 #E6E8EC · 라벨 #9AA0AD · 흐림 #7D8391 · 섹션 제목 #C9CDD5
+   테두리 #2E323C · 구분선 #23262E · 칸 바탕 #1C1F26 · 선택 바탕 #2A2618 · 금색 #E2CE74 · 바뀐 칸 테두리 #4A4226 */
+
+.pw-root {
+    background-color: #15171C;
+    color: #E6E8EC;
+    margin: 0 -6px 4px -15px;
+    padding-bottom: 14px;
+    font-size: 14px;
+}
+
+/* 머리 */
+.pw-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 16px 16px 12px 16px;
+    border-bottom-width: 1px;
+    border-bottom-color: #E2CE74;
+}
+.pw-header__left { flex-direction: row; align-items: center; }
+.pw-glyph { width: 34px; height: 34px; margin-right: 12px; flex-shrink: 0; }
+.pw-header__titles { flex-direction: column; }
+.pw-kicker { font-size: 12px; letter-spacing: 3px; color: #9AA0AD; padding: 0; margin: 0 0 1px 0; }
+.pw-title { font-size: 20px; -unity-font-style: bold; color: #E6E8EC; padding: 0; margin: 0; }
+.pw-versionbox { flex-direction: column; align-items: flex-end; }
+.pw-version { font-size: 13px; color: #9AA0AD; padding: 0; margin: 0; }
+.pw-version:hover { color: #E6E8EC; }
+.pw-update { font-size: 12px; color: #7D8391; padding: 0; margin: 2px 0 1px 0; }
+.pw-update--new { color: #15171C; background-color: #E2CE74; border-radius: 2px; padding: 1px 5px; -unity-font-style: bold; }
+.pw-update--new:hover { background-color: #FFE7A0; }
+
+/* 몸통·섹션 */
+.pw-body { padding: 14px 16px 0 16px; }
+.pw-section { flex-direction: column; }
+.pw-section__head { flex-direction: row; align-items: center; margin-bottom: 8px; }
+.pw-section__num { font-size: 12px; color: #E2CE74; padding: 0; margin: 0 10px 0 0; }
+.pw-section__title { flex-grow: 1; font-size: 13px; -unity-font-style: bold; letter-spacing: 1.5px; color: #C9CDD5; padding: 0; margin: 0; }
+.pw-section__meta { font-size: 12px; color: #7D8391; padding: 0; margin: 0; }
+.pw-divider { height: 1px; background-color: #23262E; margin: 12px 0; }
+
+.pw-rows { flex-direction: column; }
+.pw-row { flex-direction: row; align-items: center; min-height: 32px; margin-bottom: 4px; }
+.pw-label { width: 140px; flex-shrink: 0; color: #9AA0AD; padding: 0; margin: 0; -unity-text-align: middle-left; }
+.pw-row__control { flex-grow: 1; }
+
+/* 버튼 묶음(언어·손·크기·라벨 맞춤) */
+.pw-seg {
+    flex-direction: row;
+    border-width: 1px;
+    border-color: #2E323C;
+    border-radius: 4px;
+    overflow: hidden;
+    height: 26px;
+}
+.pw-seg__item {
+    flex-grow: 1;
+    flex-basis: 0;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-left-width: 1px;
+    border-color: #2E323C;
+    border-radius: 0;
+    background-color: rgba(0, 0, 0, 0);
+    color: #9AA0AD;
+    font-size: 14px;
+}
+.pw-seg__item--first { border-left-width: 0; }
+.pw-seg__item:hover { background-color: #1C1F26; color: #E6E8EC; }
+.pw-seg__item--on, .pw-seg__item--on:hover { background-color: #2A2618; color: #E2CE74; -unity-font-style: bold; }
+
+/* 체크 */
+.pw-check { flex-direction: row; align-items: center; }
+.pw-toggle { margin: 0 8px 0 0; }
+.pw-toggle .unity-toggle__checkmark {
+    width: 16px;
+    height: 16px;
+    background-color: #1C1F26;
+    border-width: 1px;
+    border-color: #2E323C;
+    border-radius: 3px;
+    background-image: none;
+}
+.pw-toggle:checked .unity-toggle__checkmark,
+.pw-toggle .unity-toggle__input:checked > .unity-toggle__checkmark { background-color: #E2CE74; border-color: #E2CE74; background-image: none; }
+.pw-toggle:hover .unity-toggle__checkmark { border-color: #7D8391; }
+.pw-check__text { color: #C9CDD5; padding: 0; margin: 0; }
+
+/* 미세 조정 줄: 라벨 · 게이지 · 값 */
+.pw-offset { flex-direction: row; align-items: center; min-height: 32px; margin-bottom: 4px; }
+.pw-gauge { flex-grow: 1; height: 18px; margin: 0 10px 0 0; }
+.pw-gauge__track { position: absolute; left: 0; right: 0; top: 8px; height: 2px; background-color: #2E323C; }
+.pw-gauge__zero { position: absolute; left: 50%; top: 5px; width: 1px; height: 8px; background-color: #3A3F4B; }
+.pw-gauge__fill { position: absolute; top: 8px; height: 2px; background-color: #E2CE74; }
+.pw-gauge__knob {
+    position: absolute;
+    top: 4px;
+    width: 2px;
+    height: 10px;
+    margin-left: -1px;
+    background-color: #C9CDD5;
+}
+.pw-offset--on .pw-gauge__knob { background-color: #E2CE74; }
+.pw-offset--on .pw-label { color: #E6E8EC; }
+
+.pw-value { width: 80px; flex-shrink: 0; margin: 0; }
+.pw-value .unity-base-text-field__input, .pw-value .unity-float-field__input {
+    height: 24px;
+    background-color: #1C1F26;
+    border-width: 1px;
+    border-color: #2E323C;
+    border-radius: 3px;
+    color: #E6E8EC;
+    font-size: 13px;
+    -unity-text-align: middle-right;
+    padding: 0 6px;
+}
+.pw-value:focus .unity-base-text-field__input { border-color: #7D8391; }
+.pw-offset--on .pw-value .unity-base-text-field__input { border-color: #4A4226; color: #E2CE74; }
+
+/* 마지막 빌드 */
+.pw-facts { flex-direction: column; }
+.pw-fact { flex-direction: row; align-items: center; min-height: 20px; margin-bottom: 2px; }
+.pw-fact__value { flex-grow: 1; flex-shrink: 1; color: #E6E8EC; font-size: 13px; padding: 0; margin: 0; white-space: normal; }
+.pw-fact__value--gold { color: #E2CE74; }
+/* 경고: 주황 띠 + 어두운 주황 바탕 + 아이콘 — 회색 메모(pw-note)·금색 강조(--gold)와 섞여 안 읽히던 것(2026-10-22) */
+.pw-warn {
+    flex-direction: row;
+    align-items: flex-start;
+    background-color: #3A1F14;
+    border-left-width: 4px;
+    border-left-color: #FF8A4C;
+    border-radius: 3px;
+    padding: 8px 10px 8px 8px;
+    margin: 8px 0 0 0;
+}
+.pw-warn__icon { width: 18px; height: 18px; margin: 0 8px 0 0; flex-shrink: 0; }
+.pw-warn__text { flex-grow: 1; flex-shrink: 1; color: #FFE3D3; font-size: 13px; -unity-font-style: bold; white-space: normal; padding: 0; margin: 0; }
+.pw-warn__ok {
+    flex-shrink: 0;
+    height: 22px;
+    margin: -2px 0 0 8px;
+    padding: 0 10px;
+    font-size: 12px;
+    color: #FFE3D3;
+    background-color: #5A2E1C;
+    border-width: 1px;
+    border-color: #FF8A4C;
+    border-radius: 3px;
+}
+.pw-warn__ok:hover { background-color: #6E3822; color: #FFFFFF; }
+/* 확인 누른 경고: 한 줄로 접고 흐리게(내용은 마우스를 올리면) — 이미 조절한 사람에게 계속 소리치지 않게(2026-10-22) */
+.pw-warn--ok { align-items: center; background-color: #262022; border-left-color: #7A4A30; padding: 4px 8px 4px 8px; margin-top: 4px; }
+.pw-warn--ok .pw-warn__icon { opacity: 0.5; }
+.pw-warn--ok .pw-warn__text { color: #8F857F; font-size: 12px; -unity-font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pw-warn--ok .pw-warn__ok { margin-top: 0; height: 20px; color: #B8A49A; background-color: #2E2628; border-color: #4A3A34; }
+.pw-fact__value--warn { color: #FF8A4C; -unity-font-style: bold; }
+.pw-note { color: #7D8391; white-space: normal; padding: 0; margin: 0; }
+.pw-note--gap { margin: 2px 0 8px 0; }
+
+/* 소개·기능 */
+.pw-intro { color: #C9CDD5; white-space: normal; padding: 0; margin: 0 0 10px 0; }
+.pw-fold__head { flex-direction: row; align-items: center; margin-bottom: 6px; }
+.pw-fold__title { font-size: 12px; letter-spacing: 1.5px; -unity-font-style: bold; color: #7D8391; padding: 0; margin: 0 6px 0 0; }
+.pw-fold__head:hover .pw-fold__title { color: #E2CE74; }
+.pw-fold__chevron { width: 10px; height: 10px; }
+.pw-features { flex-direction: column; }
+.pw-feature { flex-direction: row; align-items: flex-start; margin-bottom: 5px; }
+.pw-feature__dot { width: 4px; height: 4px; margin: 6px 9px 0 1px; background-color: #E2CE74; flex-shrink: 0; }
+.pw-feature__text { flex-grow: 1; flex-shrink: 1; white-space: normal; color: #9AA0AD; font-size: 13px; padding: 0; margin: 0; }
+
+/* 손에 든 모습 미리보기 */
+.pw-preview { margin-top: 12px; }
+.pw-preview__row { flex-direction: row; }
+.pw-preview__toggle {
+    flex-grow: 1;
+    height: 30px;
+    margin: 0;
+    border-width: 1px;
+    border-color: #4A4226;
+    border-radius: 4px;
+    background-color: #1C1F26;
+    color: #E2CE74;
+    font-size: 14px;
+    -unity-font-style: bold;
+}
+.pw-preview__toggle:hover { border-color: #E2CE74; }
+.pw-preview__toggle--on, .pw-preview__toggle--on:hover { background-color: #E2CE74; border-color: #E2CE74; color: #15171C; }
+.pw-preview__toggle:disabled { color: #7D8391; border-color: #23262E; }
+.pw-preview__refresh { margin: 0 0 0 8px; height: 30px; }
+.pw-preview__note { font-size: 13px; margin-top: 6px; }
+
+/* 변경 기록 */
+.pw-changelog { color: #9AA0AD; font-size: 13px; white-space: normal; padding: 0; margin: 0; }
+.pw-link { color: #7D8391; font-size: 13px; padding: 0; margin: 6px 0 0 0; }
+.pw-link:hover { color: #E2CE74; }
+
+.pw-buttons { flex-direction: row; margin-top: 10px; }
+.pw-button {
+    height: 28px;
+    margin: 0 8px 0 0;
+    padding: 0 14px;
+    border-width: 1px;
+    border-color: #2E323C;
+    border-radius: 4px;
+    background-color: #1C1F26;
+    color: #E6E8EC;
+    font-size: 14px;
+}
+.pw-button:hover { border-color: #E2CE74; color: #E2CE74; }
+.pw-button:active { background-color: #2A2618; }
+.pw-button:disabled { color: #7D8391; border-color: #23262E; }
+
+/* 캔 전용: 프리셋 묶음(5칸)은 글이 길어 작게 · 라벨 텍스처·색 칸 · 모금 수 −/+ */
+.pw-seg--small .pw-seg__item { font-size: 12px; flex-basis: auto; padding: 0 4px; }
+.pw-row--stack { flex-direction: column; align-items: stretch; }
+.pw-row--stack .pw-label { width: auto; margin-bottom: 4px; }
+.pw-field { flex-grow: 1; flex-shrink: 1; min-width: 0; margin: 0; }
+.pw-field .unity-object-field__input, .pw-field .unity-color-field__input {
+    height: 24px;
+    background-color: #1C1F26;
+    border-width: 1px;
+    border-color: #2E323C;
+    border-radius: 3px;
+    color: #E6E8EC;
+}
+.pw-field-row { flex-direction: row; align-items: center; min-width: 0; }
+.pw-row__control { min-width: 0; }
+.pw-field-row .pw-button { margin: 0 0 0 8px; height: 24px; padding: 0 8px; flex-shrink: 0; }
+.pw-stepper { flex-direction: row; align-items: center; }
+.pw-stepper .pw-button { width: 28px; padding: 0; margin: 0; -unity-text-align: middle-center; }
+.pw-stepper__value { width: 40px; -unity-text-align: middle-center; color: #E6E8EC; font-size: 14px; -unity-font-style: bold; padding: 0; margin: 0; }
+
+/* 자식 행(Pulse Watch 2026-10-28): 위 행이 켜져야 의미 있는 설정 — 들여쓰기 + 위 행에서 내려오는 연결선(pw-row__link, painter2D),
+   부모가 꺼지면 C#이 SetEnabled(false)로 흐림. 부모와 자식은 pw-group으로 묶어 붙여 둔다 */
+.pw-group { margin-bottom: 4px; }
+.pw-group > .pw-row, .pw-group > .pw-offset { margin-bottom: 0; }
+.pw-row--child { padding-left: 22px; }
+.pw-row--child .pw-label { width: 118px; }
+.pw-row__link { position: absolute; left: 6px; top: -6px; width: 11px; height: 22px; }
