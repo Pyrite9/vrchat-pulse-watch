@@ -34,7 +34,7 @@ Tested with: Unity 2022.3.22f1, VRChat SDK Avatars 3.10.5, Modular Avatar 1.18.7
 Older versions and preview versions (alpha / beta) have not been tested.
 
 - **PC only.** If you also upload an Android / Quest version of the same avatar, delete or switch off the `PulseWatch` object before building for Android.
-- With every feature on, the watch adds 2 lights (flashlight and depth light) to your avatar. If you do not need one, leave it out under **Include** (see "Notes").
+- With every feature on, the watch adds 2 lights (flashlight and depth light) to your avatar, and the scan wave and the waypoint laser make its Bounds much larger. Leave out any feature you do not need under **Include** (see "Who sees what — and what it costs" and "Performance").
 
 ## Installation
 
@@ -64,18 +64,18 @@ At build time the watch measures the avatar's forearm, hand and head and fits th
 
 One submenu, **Pulse Watch**, is added to the main menu (the item names follow **Menu language**; the name `Pulse Watch` stays):
 
-| Item | Type | Parameter | What it does |
-|---|---|---|---|
-| Keep open | Toggle | `PulseWatch/Manual` | Keeps the hologram open regardless of wrist detection. This is how you open it on desktop |
-| Waypoint ▸ Mark | Button | `PulseWatch/WpTap` | VR: turns the laser on (same as pressing the watch button). Desktop: places a mark at your feet |
-| Waypoint ▸ Clear | Button | `PulseWatch/WpClear` | Removes the mark |
-| Waypoint ▸ Show to others | Toggle (saved) | `PulseWatch/WpShow` | On: others also see the mark, name tag, laser and the direction on the disc |
-| Flashlight | Toggle | `PulseWatch/Flash` | Turns the flashlight on (same as pressing the watch tab) |
-| Hide from others | Toggle (saved) | `PulseWatch/Hide` | On: the watch does not open on others' screens (it still does on yours). The waypoint follows `Show to others`, not this |
-| Settings ▸ Sensitivity: loose / strict | Toggle (saved) | `PulseWatch/Sens` | +10° / −10° on all four open / close angles. Both off = normal |
-| Settings ▸ Wear on right wrist | Toggle (saved) | `PulseWatch/Right` | Moves the watch to the right wrist (the default is **Wrist** in the inspector) |
-| Settings ▸ Wear on inside of wrist | Toggle (saved) | `PulseWatch/Inside` | Moves it to the palm side (the tactical style) — then turn the palm to your eyes to read it |
-| Settings ▸ Debug meter | Toggle (saved) | `PulseWatch/Debug` | Only present when **Debug meter** is on in the inspector. For tuning the detection angles. Starts on (bars shown) |
+| Item | Type | Parameter | What it does | Others |
+|---|---|---|---|---|
+| Keep open | Toggle | `PulseWatch/Manual` | Keeps the hologram open regardless of wrist detection. This is how you open it on desktop | Local — the result (`Open`) is synced, so it opens on others' screens too |
+| Waypoint ▸ Mark | Button | `PulseWatch/WpTap` | VR: turns the laser on (same as pressing the watch button). Desktop: places a mark at your feet | Local — the laser and mark are synced (others see them with `Show to others`) |
+| Waypoint ▸ Clear | Button | `PulseWatch/WpClear` | Removes the mark | Local — the result is synced |
+| Waypoint ▸ Show to others | Toggle (saved) | `PulseWatch/WpShow` | On: others also see the mark, name tag, laser and the direction on the disc | Synced |
+| Flashlight | Toggle | `PulseWatch/Flash` | Turns the flashlight on (same as pressing the watch tab) | Local — others do not see it |
+| Hide from others | Toggle (saved) | `PulseWatch/Hide` | On: the watch does not open on others' screens (it still does on yours). The waypoint follows `Show to others`, not this | Synced |
+| Settings ▸ Sensitivity: loose / strict | Toggle (saved) | `PulseWatch/Sens` | +10° / −10° on all four open / close angles. Both off = normal | Local — detection runs only on your side |
+| Settings ▸ Wear on right wrist | Toggle (saved) | `PulseWatch/Right` | Moves the watch to the right wrist (the default is **Wrist** in the inspector) | Synced |
+| Settings ▸ Wear on inside of wrist | Toggle (saved) | `PulseWatch/Inside` | Moves it to the palm side (the tactical style) — then turn the palm to your eyes to read it | Synced |
+| Settings ▸ Debug meter | Toggle (saved) | `PulseWatch/Debug` | Only present when **Debug meter** is on in the inspector. For tuning the detection angles. Starts on (bars shown) | Local — others do not see it |
 
 The Flashlight item is not shown when that feature is left out, nor the Waypoint submenu when the waypoint is left out.
 
@@ -98,24 +98,56 @@ Saved (kept when the avatar is loaded again): sensitivity, right wrist, inside o
 - A tab can only be pressed while the hand is pointing — brushing it with an open hand or a fist does nothing. If your avatar has a facial expression assigned to that hand gesture, the expression may change while you press (the avatar's own FX gesture expressions).
 - The time zone is that of the PC that builds the avatar (or the UTC offset set in the inspector), and everyone sees the same time on your watch: the wearer's. With **This PC's time zone** on, that zone's daylight saving rule (as of the year you build) is baked in too, and the clock switches automatically by date. A UTC offset typed by hand is fixed, without daylight saving.
 
-## Who sees what
+## Who sees what — and what it costs
 
-| What | You | Others |
-|---|---|---|
-| Hologram opening / folding | Yes | Opens with yours (not with `Hide from others`) |
-| Clock and date, coordinates, compass | Yes | Yes (the wearer's time) |
-| Voice ring, red when muted | Yes | Yes (the blinking is not in sync) |
-| Glass blur, light drip | Yes | Yes |
-| Radar cells and the count | Yes | No (an empty disc) |
-| Scan wave, depth light | Yes | No |
-| FPS, session time | Yes | No |
-| Flashlight (the light, the lit tab) | Yes | No |
-| Debug meter | Yes | No |
-| Waypoint button tab | Yes (with the pressed look and the hold bar) | The tab only |
-| Waypoint mark, name tag, laser, direction on the disc | Always (the reticle only for you) | Only with `Show to others` on |
+For each feature: what you (the wearer) and others see, and what it adds to the avatar. The cost is how much the VRChat SDK performance stats (PC) went down when only that feature was left out of a build on Lapwing. A few parts are shared by two features, so the costs do not add up exactly to the totals under "Performance".
 
+| Feature | You | Others | Cost |
+|---|---|---|---|
+| Base (always in) — hologram opening / folding, clock and date | Yes | Opens with yours (not with `Hide from others`); the same wearer's time | 4 synced bits, 3 FX layers, 4 contacts (Local Only), 6 renderers, 6 material slots, 22 polygons, 10 VRC constraints, 1.00 MB texture memory (glyph atlas) |
+| Radar | Cells and the count | No (an empty disc) | 120 contact receivers (Local Only), 120 FX parameters |
+| Scan | The wave on opening | No | 4,610 polygons, 3 renderers, 3 material slots, 2 VRC constraints, 1 FX layer, Bounds 30 × 31 × 30 m (the 14 m wave) |
+| └ Depth light | On during the wave (lights nothing) | Not switched on | 1 light (directional) |
+| Waypoint | Button, laser, reticle, mark, name tag, direction on the disc | The button tab only; the laser, mark, name tag and direction only with `Show to others` on | 4 synced bits, 5 FX layers, 2 VRC Raycasts, 2 contacts (Local Only), 8 renderers (1 skinned), 8 material slots, 28 polygons, 3 VRC constraints, Bounds 67 × 53 × 18 m (the 50 m laser) |
+| └ Name tag | Above the mark | As the waypoint | 1 renderer, 1 material slot, 2 polygons, 0.05 MB texture memory |
+| Flashlight | The light and the lit tab | No | 1 light (spot), 2 FX layers, 2 contacts (Local Only), 3 renderers, 3 material slots, 18 polygons, 1 VRC constraint |
+| Voice ring | Glows as you speak, red when muted | Yes (the blinking is not in sync) | 2 FX layers |
+| FPS | Yes | No | None (drawn by the shader) |
+| Coordinates | Yes | Yes | None (drawn by the shader) |
+| Compass | Yes | Yes | 1 renderer (skinned), 1 material slot, 2 polygons |
+| Session time | Yes | No | 1 FX layer |
+| Glass blur | Yes | Yes | 1 GrabPass, 4 renderers, 4 material slots, 8 polygons |
+| └ Light drip | Yes | Yes | 1 GrabPass, 2 renderers (1 skinned), 2 material slots, 4 polygons, 1 bone |
+| Debug meter (off by default) | When switched on in the menu | No | 1 FX layer, 1 renderer, 1 material slot, 2 polygons |
+
+- **Runs only on the wearer's PC:** wrist detection, the radar, button presses (all 128 contacts are Local Only), the scan wave and depth light, the flashlight. None of these run on others' PCs.
+- **Also runs on others' PCs:** synced parameters, FX layers (the animator), VRC constraints, the glass blur and light drip while the hologram is open (GrabPass — the viewer's GPU), and the VRC Raycasts while the waypoint laser is on (each screen works out where the mark lands — even with `Show to others` off).
+- While the watch is closed its renderers are off, but the performance stats count what is in the build — the 2 lights count as 2 even before they are switched on on your side.
 - On others' screens each copy of your avatar casts its own laser to place the mark, so its position can differ very slightly. Someone who joins later does not see the mark until you mark again.
 - Menu language, colours, placement and detection angles are baked into the avatar at build time.
+
+## Performance
+
+Every feature on (the defaults, debug meter off). The difference in the VRChat SDK performance stats (PC) between Lapwing with and without the watch (0.1.0, VRChat SDK 3.10.5).
+
+| Stat | Added by the watch |
+|---|---|
+| Polygons | 4,688 (4,610 of them the scan wave) |
+| Bounds | the avatar's size (Lapwing 1.00 × 1.65 × 0.60 m) → **66.83 × 59.84 × 30.00 m** — the waypoint laser and the scan wave. Leave both out and it does not change |
+| Skinned Meshes / Meshes | 3 / 22 |
+| Material Slots | 25 |
+| Bones | 2 |
+| Lights | **2** (flashlight and depth light — both switched on only on the wearer's side) |
+| Contacts | 0 (the 128 contacts — 126 receivers, 2 senders — are all Local Only, which this stat leaves out) |
+| Constraints / Constraint Depth | 18 / 18 (all VRC constraints) |
+| Raycasts | 2 |
+| Texture Memory | 1.05 MB |
+| PhysBones · Particle Systems · Trail / Line Renderers · Cloths · Physics Colliders / Rigidbodies · Audio Sources · Animators | 0 |
+| Synced parameters | 8 bits (of 256) |
+| FX layers / FX parameters | 15 / 150 (including unsynced internal values, mostly the radar cells) |
+| GrabPass | 2 (glass blur, light drip) |
+
+- The 13 menu icons (256×256; 14 with the debug meter) are only used by the Expression Menu and are not in Texture Memory.
 
 ## Settings (Pulse Watch component)
 
@@ -187,7 +219,7 @@ Console warnings are in English. **Last build** in the inspector shows the same 
 | The scan wave shows only a ring and does not run over floors and walls | With **Depth light** off, worlds without a depth texture show only the ring and a floor grid. The surface scan does not show in mirrors or orthographic cameras. |
 | The flashlight flickers on and off very fast in one particular world (even when you stand still) | That world has more real-time lights than Unity allows to light a single object, and its own lights keep changing, so the flashlight drops in and out of the set of lights Unity picks each frame. It is the world's light limit — it cannot be fixed on the avatar side. |
 | The clock is one hour off | You live in a different time zone from the PC that built the avatar, typed a UTC offset by hand (no daylight saving), or the zone's daylight saving rule changed after the build (some zones change it every year). Check **Time** in the inspector, then build and upload again. |
-| The Performance rank dropped after adding the watch | Check the 2 lights (flashlight and depth light) first. Switch off the one you do not need under **Include**. |
+| The Performance rank dropped after adding the watch | Check the 2 lights (flashlight and depth light) and the Bounds (waypoint laser, scan wave) — see "Performance". Each light goes when you switch its feature off under **Include**; the Bounds goes back to the avatar's size only with both the waypoint and the scan off. |
 | The SDK says the parameters are over 256 bits | The watch uses 8 synced bits (4 without the waypoint). Free bits by removing or un-syncing other gimmicks' parameters. |
 
 ## Updating / removing
@@ -209,7 +241,7 @@ Console warnings are in English. **Last build** in the inspector shows the same 
 - Wrist detection turns angles into contact distances, so it runs on your side only; others receive only the result (open or closed).
 - The flashlight casts no shadows. The depth light is on only for the 1.4 s of the scan wave.
 - When you open the Pulse Watch inspector in the Unity Editor, it asks GitHub (`api.github.com`) for this package's latest version once a day. No personal data is sent; click the version text to check again right away.
-- Performance (every feature on, debug meter off, approximate): 8 synced bits, 15 FX layers, 126 contact receivers + 2 senders (all Local Only), 18 VRC constraints, 2 VRC Raycasts, 2 lights (both switched on only on your side), 25 renderers (3 skinned) / 21 materials, 14 meshes / about 2,400 triangles, 2 GrabPasses, 0 PhysBones, textures: a 1024×768 glyph atlas, 1 name tag, 13 menu icons (256×256; 14 with the debug meter). The watch's renderers are off while it is closed, but they are counted.
+- For the performance numbers see "Performance", and for each feature's cost "Who sees what — and what it costs".
 - The clock's digit and letter texture is a bitmap rendered from Noto Sans KR (SIL Open Font License 1.1); no font file is included. The name tag is drawn with this PC's fonts at build time.
 
 ## Contact

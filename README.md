@@ -110,6 +110,7 @@ Drop the prefab into any humanoid avatar — it fits the forearm at build time.
 
 Unity 2022.3 · VRChat SDK Avatars 3.10+ · Modular Avatar (NDMF) · humanoid avatar · PC only (lilToon not needed)  
 Tested: Unity 2022.3.22f1 / VRChat SDK 3.10.5 / Modular Avatar 1.18.7 / NDMF 1.14.8  
+Every feature on: 2 lights · Bounds up to 66.8 × 59.8 × 30 m (waypoint laser, scan wave) · 8 synced bits · 15 FX layers · all 128 contacts Local Only. Who sees what and what each feature costs: "Performance" in the README ([EN](Assets/Pyrite9/PulseWatch/README_en.md) · [JP](Assets/Pyrite9/PulseWatch/README_jp.md)「パフォーマンス」 · [KO](Assets/Pyrite9/PulseWatch/README_ko.md) "퍼포먼스")  
 The inspector checks GitHub (`api.github.com`) for the latest version once a day; nothing is sent. · インスペクターは 1 日 1 回 GitHub で最新版を確認します（送信する情報はありません）· 인스펙터는 하루 한 번 GitHub에서 최신 버전을 확인합니다(보내는 정보 없음)
 
 ## License. / 利用規約 / 라이선스
