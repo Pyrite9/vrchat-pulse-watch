@@ -15,7 +15,8 @@
   <a href="https://youtu.be/8LORLEosO8A"><b>Video</b></a> ·
   <a href="Assets/Pyrite9/PulseWatch/README_jp.md">日本語</a> ·
   <a href="Assets/Pyrite9/PulseWatch/README_en.md">English</a> ·
-  <a href="Assets/Pyrite9/PulseWatch/README_ko.md">한국어</a>
+  <a href="Assets/Pyrite9/PulseWatch/README_ko.md">한국어</a> ·
+  <a href="docs/DEVELOPMENT_ko.md">개발 노트 (한국어)</a>
 </p>
 
 <p align="center">
