@@ -87,9 +87,9 @@ namespace Pyrite9.PulseWatch
         public bool compass = true;
         [Tooltip("How long you have been in this world (from the avatar's load) right of the seconds gauge — on your own screen only. 1 FX layer.")]
         public bool sessionTime = true;
-        [Tooltip("Frosted glass: what shows through the disc and the clock is blurred. One GrabPass (the screen copied once a frame for everyone who sees it — a GPU cost on their side), 2 quads.")]
+        [Tooltip("Frosted glass: a smoky glass behind the disc and the clock that catches the surroundings softly (the world's reflection probe, blurred) with a faint sheen. No screen copy (no GrabPass), 2 quads.")]
         public bool frost = true;
-        [Tooltip("Seen from the side, the hologram's light runs straight down to your wrist; gone when you look at the watch. Needs the blur. 1 quad, one more screen copy.")]
+        [Tooltip("Seen from the side, the hologram's light runs straight down to your wrist; gone when you look at the watch, so the radar stays sharp. No screen copy: it reads a picture of this watch baked at build time (2 small textures, about 0.5 MB) and draws the time, radar, mute and voice live. 1 more material on the disc, 1 quad.")]
         public bool drip = true;
 
         [Header("Prototype")]

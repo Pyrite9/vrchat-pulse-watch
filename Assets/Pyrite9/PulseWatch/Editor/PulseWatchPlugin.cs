@@ -26,6 +26,11 @@
 //                — floor, wall or ceiling, +Y off the surface (D35) — or WpFeet on desktop (Q19), by a VRC Parent Constraint the FX freezes to the world on a mark — Mark/Vis/Diamond (+ Tag, D61), PulseWatchMark.shader
 //     flash    : Plate/LightTab beside the button (D46) and a Spot Light along the forearm, owner only
 //     fx/menu  : FX controller (PulseWatchAnimator) via MA Merge Animator, MA Parameters, MA menu (D69)
+//     glass    : (D41, 10-119) Frost quads under the disc / plate / tabs (no GrabPass: probe + smoke + sheen) and the light drip —
+//                pictures baked now from this watch (PulseWatchBake), the disc's board a second submesh + slot of Face/Disc so
+//                the FX's disc curves (_Rad*, _ScanR, _Muted, _Voice, _CountOn) reach it too
+//     prewarm  : (10-119) a tiny renderer on the chest drawing every watch shader once when the avatar first comes into view, so
+//                the driver's compile happens with the avatar's loading and not on the first opening
 //   Features switched off in the settings (radar, scan, waypoint, flashlight, voiceRing, fps, coordinates, compass,
 //   sessionTime, frost, drip, debugMeter — D32)
 //   are left out entirely: no objects, contacts, layers, parameters or menu items
@@ -332,12 +337,12 @@ namespace Pyrite9.PulseWatch
             // compass (D27 2): a quad skinned to the disc whose root bone is the frame — the shader reads the heading from it
             bool compass = pw.compass && discMat != null;
             if (compass) DiscOverlay(face, "Compass", frame, discMat, 6f, CompassLift, made);
-            // glass (D41): the blur under the disc and the plate, and the hologram's light running down to the forearm (needs the
-            // blur: it reads the screen the blur copied before the hologram)
+            // glass (D41): the glass under the disc and the plate, and the hologram's light running down to the forearm (10-119:
+            // neither reads the screen any more, so each stands alone)
             var tabs = new[] { wp ? plate.Find("Button") : null, flash ? plate.Find("LightTab") : null }.Where(t => t != null).ToArray();
             bool frost = pw.frost && BuildFrost(face, plate, tabs, s, quad, made, log);
-            bool drip = pw.drip && frost && BuildDrip(face, plate, tabs, plateMat, s, made, log);
-            if (pw.drip && !frost) log.AppendLine("drip off: it needs the blur (the screen copied before the hologram)");
+            bool drip = pw.drip && BuildDrip(face, plate, tabs, plateMat, s, made, log)
+                && LiveDrip(avatar, face, panel, plate, discMat, plateMat, made, log);
 
             // detection pairs (L and the receiver radius scale with the forearm)
             float L = Arm * s;
@@ -394,7 +399,10 @@ namespace Pyrite9.PulseWatch
                 foreach (var (p, v) in new[] { (VoiceS, 0f), (VoiceRiseK, VoiceRise), (VoiceRiseK1, 1f - VoiceRise), (VoiceFallK, VoiceFall), (VoiceFallK1, 1f - VoiceFall) })
                     ps.parameters.Add(Param(p, ParameterSyncType.NotSynced, v));
             if (pw.radar)
+            {
+                ps.parameters.Add(Param(RadarLive, ParameterSyncType.NotSynced, 0f));
                 foreach (var (k, b, i) in AllSlices()) ps.parameters.Add(Param(Cell(k, b, i), ParameterSyncType.NotSynced, 0f));
+            }
 
             if (wp)
             {
@@ -413,6 +421,7 @@ namespace Pyrite9.PulseWatch
             }
 
             BuildMenu(root, (int)pw.menuLanguage, wp, flash, pw.debugMeter, log);
+            Prewarm(root, anim, made, log);
 
             foreach (var o in made.Where(o => o != null && !EditorUtility.IsPersistent(o))) ctx.AssetSaver.SaveAsset(o);
             log.AppendLine($"wrist: {(left ? "left" : "right")} by default, menu switches (D18); sizes x{s:0.00}, L {L:0.000} m, receiver r {r:0.000} m");
@@ -757,27 +766,21 @@ namespace Pyrite9.PulseWatch
             }
         }
 
-        // frosted glass (D41): a quad just under the disc and one under the plate, both redrawing what is behind them blurred
-        // (PulseWatchFrost, one named GrabPass). Children of Face / Plate, so they pop and grow with them and hide with them.
+        // glass (D41): a quad just under the disc and one under the plate (PulseWatchFrost — no GrabPass since 10-119: the blurred
+        // reflection probe behind + smoke + sheen). Children of Face / Plate, so they pop and grow with them and hide with them.
         // The tabs under the plate get one each too (D44 waypoint, D46 flashlight), under their own unit objects
         static bool BuildFrost(Transform face, Transform plate, Transform[] tabs, float s, Mesh quad, List<Object> made, StringBuilder log)
         {
             var frostShader = Shader.Find(FrostShaderName);
             if (frostShader == null) { log.AppendLine($"WARN shader {FrostShaderName} not found — no blur"); return false; }
             float plateH = PlateWidth / PlateAspect;
-            // the disc's glass is culled by bounds covering both light drip boards (the disc's, DripHalfWidth across, and the plate's
-            // beside it): the drip subtracts the screen this glass grabbed, so where a drip board is on screen the grab must have been
-            // taken this frame — with the disc just off screen a stale grab (last frame's, another camera's) streaked the board
-            float cull = 2f * (DripHalfWidth + 0.05f) / DiscSize;
-            var discQuad = QuadMesh(made, "PulseWatch Frost Disc Quad", new Bounds(Vector3.zero, new Vector3(cull, 0.12f, cull)));
-            var under = new List<(Transform, float, Vector3, Mesh)> { (face, 0f, new Vector3(DiscSize, 1f, DiscSize), discQuad), (plate, 1f, new Vector3(PlateWidth, 1f, plateH), quad) };
+            var under = new List<(Transform, float, Vector3, Mesh)> { (face, 0f, new Vector3(DiscSize, 1f, DiscSize), quad), (plate, 1f, new Vector3(PlateWidth, 1f, plateH), quad) };
             foreach (var tab in tabs) under.Add((tab, 2f, new Vector3(ButtonW, 1f, ButtonH), quad));
             foreach (var (parent, shape, size, mesh) in under)
             {
                 var m = new Material(frostShader) { name = shape == 0f ? "PulseWatch Frost Disc" : shape == 1f ? "PulseWatch Frost Plate" : "PulseWatch Frost Button" };
                 m.SetFloat("_Shape", shape);
                 m.SetFloat("_Aspect", shape == 2f ? ButtonW / ButtonH : PlateAspect);
-                m.SetFloat("_Blur", FrostBlur * s);
                 m.SetFloat("_DepthBias", DepthBias * s);
                 made.Add(m);
                 Visual(parent, "Frost", new Vector3(0f, -0.0005f * s, 0f), size * s, mesh, m, true);   // just under the disc / plate quad
@@ -787,9 +790,8 @@ namespace Pyrite9.PulseWatch
 
         // light drip (D41, 10-56; the plate's D43): one board on Face's origin and one on the clock plate's, both turned to the camera
         // about Face's normal by their shader (PulseWatchDrip), trailing what the hologram lights down the normal toward the forearm
-        // (wrist-vertical, D41), hidden when looked at along it. The disc's: unit-scale sizes x s through its own scale, so it
-        // narrows as Face closes. The plate's: four vertices skinned to the plate with Holo (Face's axes) as the root bone — the
-        // shader gets Holo's matrix and the plate's origin as the vertex (_AtVertex), so its sizes carry s themselves
+        // (wrist-vertical, D41), hidden when looked at along it. What they trail is set by LiveDrip (the baked pictures). Both:
+        // unit-scale sizes x s through their own scale, so the disc's narrows as Face closes and the plate's as the panel does
         static bool BuildDrip(Transform face, Transform plate, Transform[] tabs, Material plateMat, float s, List<Object> made, StringBuilder log)
         {
             var dripShader = Shader.Find(DripShaderName);
@@ -811,33 +813,159 @@ namespace Pyrite9.PulseWatch
                 new Vector3(2f * DripHalfWidth, DripTop + DripLength + 0.005f, 2f * DripHalfWidth)));
             Visual(face, "Drip", Vector3.zero, Vector3.one * s, board, DripMat("PulseWatch Drip", DripHalfWidth, DripTop, 1f), true);
 
-            var pm = DripMat("PulseWatch Drip Plate", PlateDripHalfWidth, PlateDripTop, s);
-            pm.SetFloat("_AtVertex", 1f);
-            pm.SetVector("_PlateHalf", new Vector4(PlateWidth * 0.5f * s, PlateWidth / PlateAspect * 0.5f * s, 0f, 0f));
-            if (plateMat != null) pm.SetFloat("_BackA", plateMat.GetColor("_Back").a);
-            if (tabs.Length > 0)   // D44 / D46: the row of tabs runs down too (one rectangle over them, the gap between counted in)
-            {
-                float lo = tabs.Min(t => t.localPosition.x) - ButtonW * 0.5f * s, hi = tabs.Max(t => t.localPosition.x) + ButtonW * 0.5f * s;
-                pm.SetVector("_Button", new Vector4(ButtonDown * s, (hi - lo) * 0.5f, ButtonH * 0.5f * s, (hi + lo) * 0.5f));
-            }
-            var skin = QuadMesh(made, "PulseWatch Drip Plate Board", new Bounds(Vector3.zero, Vector3.one));
-            skin.vertices = new Vector3[4];   // all on the plate's origin; the shader spreads them by uv
-            skin.normals = Enumerable.Repeat(Vector3.up, 4).ToArray();   // the plate's normal and X, skinned into Holo's space
-            skin.tangents = Enumerable.Repeat(new Vector4(1f, 0f, 0f, 1f), 4).ToArray();
-            skin.boneWeights = Enumerable.Repeat(new BoneWeight { boneIndex0 = 0, weight0 = 1f }, 4).ToArray();
-            skin.bindposes = new[] { Matrix4x4.identity };
-            var go = new GameObject("Drip");
-            go.transform.SetParent(plate, false);
-            var smr = go.AddComponent<SkinnedMeshRenderer>();
-            smr.sharedMesh = skin;
-            smr.bones = new[] { plate };
-            smr.rootBone = face.parent;   // Holo: Face's axes without its FX scale (0 when closed — no inverse to skin into)
-            // in Holo's space: wherever the plate slides (D18 sides, the open pop) and however far the streaks run
-            smr.localBounds = new Bounds(Vector3.zero, Vector3.one * 0.3f * s);
-            smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            smr.receiveShadows = false;
-            smr.sharedMaterial = pm;
+            // the plate's (10-120): a plain board on the plate like the disc's — the plate keeps Holo's axes (no rotation of its own),
+            // and a mesh renderer's matrix carries every scale above it at run time (the avatar's root, VRChat avatar scaling), which
+            // the baked picture's units need. It was skinned to the plate with Holo as the root bone, and a skinned renderer's matrix
+            // has no scale: on Kipfel (root 1.12) the plate's picture came out 1/1.12 the size of the plate
+            var plateBoard = QuadMesh(made, "PulseWatch Drip Plate Board", new Bounds(new Vector3(0f, (PlateDripTop - DripLength) * 0.5f, 0f),
+                new Vector3(2f * PlateDripHalfWidth, PlateDripTop + DripLength + 0.005f, 2f * PlateDripHalfWidth)));
+            Visual(plate, "Drip", Vector3.zero, Vector3.one * s, plateBoard, DripMat("PulseWatch Drip Plate", PlateDripHalfWidth, PlateDripTop, 1f), true);
             return true;
+        }
+
+        // 10-119: the drip's pictures baked from this watch (PulseWatchBake) and what it draws live on top — the disc's sweep, cells,
+        // outer ring / ticks / + with mute and voice, mic and count tab (_Live, the Proto's colours); the plate's time, seconds and
+        // gauge from the glyph atlas (_Glyph, the plate's clock settings). Then the disc's board becomes Face/Disc's second submesh
+        // and slot, so the FX's disc curves reach it (an Animator material curve drives the whole renderer)
+        static bool LiveDrip(Transform avatar, Transform face, Transform panel, Transform plate, Material discMat, Material plateMat, List<Object> made, StringBuilder log)
+        {
+            var board = face.Find("Drip");
+            var plateDrip = plate.Find("Drip");
+            PulseWatchBake.Result bake = null;
+            if (discMat != null && plateMat != null && board != null && plateDrip != null) bake = PulseWatchBake.Bake(avatar, face, panel, plate, board, plateDrip);
+            if (bake == null)
+            {
+                log.AppendLine("WARN light drip: nothing to bake (hologram missing) — no drip");
+                if (board != null) Object.DestroyImmediate(board.gameObject);
+                if (plateDrip != null) Object.DestroyImmediate(plateDrip.gameObject);
+                return false;
+            }
+            bake.disc.tex.name = "PulseWatch Drip Bake Disc";
+            bake.plate.tex.name = "PulseWatch Drip Bake Plate";
+            made.Add(bake.disc.tex);
+            made.Add(bake.plate.tex);
+            var dm = board.GetComponent<Renderer>().sharedMaterial;
+            var pm = plateDrip.GetComponent<Renderer>().sharedMaterial;
+            foreach (var (m, t) in new[] { (dm, bake.disc), (pm, bake.plate) })
+            {
+                m.SetTexture("_BakeTex", t.tex);
+                m.SetVector("_BakeRect", t.rect);
+                m.SetFloat("_BakeH", t.h);
+            }
+            dm.SetFloat("_Live", 1f);
+            dm.SetFloat("_LiveK", DripLiveK);
+            dm.SetColor("_Acc", discMat.GetColor("_Color"));
+            foreach (var p in new[] { "_Pair", "_CellR", "_PairK" }) dm.SetVector(p, discMat.GetVector(p));
+            foreach (var p in new[] { "_PairFar", "_CellRFar", "_ScanR" }) dm.SetFloat(p, discMat.GetFloat(p));
+            dm.SetColor("_Ink", discMat.GetColor("_LineColor"));
+            dm.SetColor("_BackC", discMat.GetColor("_Back"));
+            dm.SetTexture("_Glyphs", discMat.GetTexture("_Glyphs"));
+            dm.SetFloat("_DiscPx", bake.disc.rect.z / bake.disc.tex.width / dm.GetFloat("_DiscR"));
+            pm.SetFloat("_Glyph", 1f);
+            pm.SetTexture("_Glyphs", plateMat.GetTexture("_Glyphs"));
+            pm.SetVector("_PlateM", bake.plateM);
+            pm.SetVector("_PlateT", bake.plateT);
+            pm.SetFloat("_PlatePx", bake.platePx);
+            pm.SetColor("_InkBake", plateMat.GetColor("_LineColor"));   // the bake keeps the material colours as they are
+            pm.SetColor("_AccBake", plateMat.GetColor("_Color"));
+            pm.SetInteger("_UtcOffsetMin", plateMat.GetInteger("_UtcOffsetMin"));
+            pm.SetInteger("_DstMin", plateMat.GetInteger("_DstMin"));
+            pm.SetVector("_DstStart", plateMat.GetVector("_DstStart"));
+            pm.SetVector("_DstEnd", plateMat.GetVector("_DstEnd"));
+            IntoDisc(board, dm, made);
+            log.AppendLine($"light drip: baked {bake.log}; the disc's board in Face/Disc's second slot");
+            return true;
+        }
+
+        // the disc's drip board as a second submesh + material on Face/Disc. Disc and Drip share Face as parent and the origin; the
+        // board shader reads only uv, the origin, the axes and the Y scale (s on both), and the X scale for the width (Disc's is
+        // DiscSize x s), so _HalfW is divided by DiscSize
+        static void IntoDisc(Transform drip, Material m, List<Object> made)
+        {
+            var discT = drip.parent.Find("Disc");
+            var mf = discT.GetComponent<MeshFilter>();
+            var dr = discT.GetComponent<MeshRenderer>();
+            var src = mf.sharedMesh;
+            var board = drip.GetComponent<MeshFilter>().sharedMesh;
+            float discSize = discT.localScale.x / discT.localScale.y;
+            var mesh = Object.Instantiate(src);
+            mesh.name = src.name + " + Drip";
+            var v = new List<Vector3>(src.vertices);
+            var uv = new List<Vector2>(src.uv);
+            var uv1 = new List<Vector4>();
+            src.GetUVs(1, uv1);
+            var n = new List<Vector3>(src.normals);
+            int b = v.Count;
+            v.AddRange(board.vertices);
+            uv.AddRange(board.uv);
+            n.AddRange(board.normals);
+            for (int i = 0; i < board.vertexCount; i++) uv1.Add(new Vector4(-1f, 0f, 0f, 0f));
+            mesh.SetVertices(v);
+            mesh.SetUVs(0, uv);
+            mesh.SetUVs(1, uv1);
+            mesh.SetNormals(n);
+            mesh.subMeshCount = 2;
+            mesh.SetTriangles(src.triangles, 0);
+            mesh.SetTriangles(board.triangles.Select(t => t + b).ToArray(), 1);
+            var bb = board.bounds;   // board units (Drip's scale s) into Disc's (X / Z: DiscSize x s)
+            var bounds = src.bounds;
+            bounds.Encapsulate(new Bounds(new Vector3(bb.center.x / discSize, bb.center.y, bb.center.z / discSize), new Vector3(bb.size.x / discSize, bb.size.y, bb.size.z / discSize)));
+            mesh.bounds = bounds;
+            made.Remove(src);
+            made.Remove(board);
+            made.Add(mesh);
+            mf.sharedMesh = mesh;
+            m.SetFloat("_HalfW", m.GetFloat("_HalfW") / discSize);
+            dr.sharedMaterials = new[] { dr.sharedMaterial, m };
+            Object.DestroyImmediate(drip.gameObject);
+        }
+
+        // 10-119 prewarm: a driver compiles a shader the first time it is drawn (0.1.0's Proto ~1.4-1.9 s, now ~0.33 s; the drip
+        // ~0.07 s, lab player). A small renderer on the chest draws each watch program (shader + keywords) once — a submesh each,
+        // the real materials (uniforms don't change the program) — so the compile comes when the avatar first comes into view,
+        // with its loading, not when the watch opens. Its own Animator (Cull Completely) switches it off after PrewarmSeconds of
+        // visible time: while nobody sees the chest its clock stands and nothing is drawn. Triangles 0.1 mm inside the chest,
+        // bounds 0.6 m (in view looking down in first person); no shadows or probes, so "visible" means the pass was drawn
+        static void Prewarm(Transform root, Animator anim, List<Object> made, StringBuilder log)
+        {
+            var mats = new List<Material>();
+            var seen = new HashSet<string>();
+            foreach (var r in root.GetComponentsInChildren<Renderer>(true))
+                foreach (var m in r.sharedMaterials)
+                {
+                    if (m == null || !m.shader.name.StartsWith("Pyrite9/PulseWatch")) continue;
+                    if (seen.Add(m.shader.name + "|" + string.Join(" ", m.shaderKeywords.OrderBy(k => k)))) mats.Add(m);
+                }
+            if (mats.Count == 0) return;
+            var bone = new[] { HumanBodyBones.Chest, HumanBodyBones.Spine, HumanBodyBones.Hips }.First(b => anim.GetBoneTransform(b) != null);
+            var chest = anim.GetBoneTransform(bone);
+            var go = Anchor(root, "Prewarm", new Pose(chest.position, chest.rotation), bone);
+            var meshGo = new GameObject("Mesh");
+            meshGo.transform.SetParent(go, false);
+            float k = 1f / Mathf.Max(1e-6f, go.lossyScale.x);   // metres, whatever the scale above
+            var v = new List<Vector3>();
+            for (int i = 0; i < mats.Count; i++) { v.Add(Vector3.zero); v.Add(new Vector3(PrewarmTri * k, 0f, 0f)); v.Add(new Vector3(0f, PrewarmTri * k, 0f)); }
+            var mesh = new Mesh { name = "PulseWatch Prewarm" };
+            mesh.SetVertices(v);
+            mesh.SetUVs(0, v.Select(_ => Vector2.zero).ToList());
+            mesh.SetNormals(v.Select(_ => Vector3.forward).ToList());
+            mesh.subMeshCount = mats.Count;
+            for (int i = 0; i < mats.Count; i++) mesh.SetTriangles(new[] { i * 3, i * 3 + 1, i * 3 + 2 }, i);
+            mesh.bounds = new Bounds(Vector3.zero, Vector3.one * PrewarmBounds * k);
+            made.Add(mesh);
+            meshGo.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = meshGo.AddComponent<MeshRenderer>();
+            mr.sharedMaterials = mats.ToArray();
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+            mr.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            mr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+            mr.allowOcclusionWhenDynamic = false;
+            var animator = go.gameObject.AddComponent<Animator>();
+            animator.runtimeAnimatorController = PulseWatchAnimator.Prewarm("Mesh", PrewarmSeconds, made);
+            animator.cullingMode = AnimatorCullingMode.CullCompletely;
+            animator.applyRootMotion = false;
+            log.AppendLine($"prewarm: {mats.Count} programs on {chest.name} ({string.Join(", ", mats.Select(m => m.shader.name.Split('/').Last()))}), off after {PrewarmSeconds:0.00} s in view");
         }
 
         // a quad over the disc, skinned to it, with another transform as its root bone: the shader gets that transform as its

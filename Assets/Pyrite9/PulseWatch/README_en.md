@@ -1,6 +1,6 @@
 # Pyrite9 Pulse Watch
 
-Version 0.1.0 (2026-10-30)
+Version 0.1.1 (2026-11-01)
 
 A pop-up wristwatch gimmick for VRChat avatars. Drop the prefab into a humanoid avatar and it fits the watch to that avatar's forearm when you build.
 Turn your wrist to your eyes as if checking the time and a hologram opens over the watch — your local time, a radar of the people around you, a scan wave, and waypoint and flashlight buttons you press with a finger. Move the wrist away and it folds up.
@@ -18,7 +18,8 @@ Turn your wrist to your eyes as if checking the time and a hologram opens over t
 - The clock shows everyone the time in your time zone and your world position; your frame rate is shown only to you
 - The disc's outer ring glows while you speak, and blinks red with a mic mark while you are muted
 - Left or right wrist, back or inside of the wrist (both switchable from the menu), and an option to hide the hologram from others
-- Frosted glass behind the hologram; seen from the side, its light runs down to the wrist
+- Frosted glass behind the hologram; seen from the side, its light runs down to the wrist — neither copies the screen
+- The watch's shaders are warmed up when your avatar first comes into view, so the first opening does not stall
 - Fits itself to the avatar's forearm at build time. Choose the accent and waypoint colours, and leave out any feature you do not need (left-out features are not in the build)
 
 ## Requirements
@@ -105,7 +106,8 @@ For each feature: what you (the wearer) and others see, and what it adds to the 
 | Feature | You | Others | Cost |
 |---|---|---|---|
 | Base (always in) — hologram opening / folding, clock and date | Yes | Opens with yours (not with `Hide from others`); the same wearer's time | 4 synced bits, 3 FX layers, 4 contacts (Local Only), 6 renderers, 6 material slots, 22 polygons, 10 VRC constraints, 1.00 MB texture memory (glyph atlas) |
-| Radar | Cells and the count | No (an empty disc) | 120 contact receivers (Local Only), 120 FX parameters |
+| Prewarm (always in) — draws each watch shader once when your avatar first comes into view, then switches itself off | Nothing to see (a 0.1 mm triangle inside the chest) | The same on their PC — their first look at your watch does not stall either | 1 renderer and 1 Animator (Cull Completely); 1 material slot and 1 polygon per watch shader in the build (5 with every feature on, 1 with all left out) |
+| Radar | Cells and the count | No (an empty disc) | 120 contact receivers (Local Only), 121 FX parameters |
 | Scan | The wave on opening | No | 4,610 polygons, 3 renderers, 3 material slots, 2 VRC constraints, 1 FX layer, Bounds 30 × 31 × 30 m (the 14 m wave) |
 | └ Depth light | On during the wave (lights nothing) | Not switched on | 1 light (directional) |
 | Waypoint | Button, laser, reticle, mark, name tag, direction on the disc | The button tab only; the laser, mark, name tag and direction only with `Show to others` on | 4 synced bits, 5 FX layers, 2 VRC Raycasts, 2 contacts (Local Only), 8 renderers (1 skinned), 8 material slots, 28 polygons, 3 VRC constraints, Bounds 67 × 53 × 18 m (the 50 m laser) |
@@ -116,36 +118,37 @@ For each feature: what you (the wearer) and others see, and what it adds to the 
 | Coordinates | Yes | Yes | None (drawn by the shader) |
 | Compass | Yes | Yes | 1 renderer (skinned), 1 material slot, 2 polygons |
 | Session time | Yes | No | 1 FX layer |
-| Glass blur | Yes | Yes | 1 GrabPass, 4 renderers, 4 material slots, 8 polygons |
-| └ Light drip | Yes | Yes | 1 GrabPass, 2 renderers (1 skinned), 2 material slots, 4 polygons, 1 bone |
+| Glass blur | Yes | Yes | 4 renderers, 4 material slots, 8 polygons |
+| Light drip | Yes | Yes | 1 renderer, 2 material slots (one of them a second slot on the disc), 4 polygons, 0.45 MB texture memory (two pictures of this watch baked at build time) |
 | Debug meter (off by default) | When switched on in the menu | No | 1 FX layer, 1 renderer, 1 material slot, 2 polygons |
 
 - **Runs only on the wearer's PC:** wrist detection, the radar, button presses (all 128 contacts are Local Only), the scan wave and depth light, the flashlight. None of these run on others' PCs.
-- **Also runs on others' PCs:** synced parameters, FX layers (the animator), VRC constraints, the glass blur and light drip while the hologram is open (GrabPass — the viewer's GPU), and the VRC Raycasts while the waypoint laser is on (each screen works out where the mark lands — even with `Show to others` off).
+- **Also runs on others' PCs:** synced parameters, FX layers (the animator), VRC constraints, the glass and light drip while the hologram is open (the viewer's GPU — no screen copy), the prewarm (once, when your avatar first comes into their view), and the VRC Raycasts while the waypoint laser is on (each screen works out where the mark lands — even with `Show to others` off).
 - While the watch is closed its renderers are off, but the performance stats count what is in the build — the 2 lights count as 2 even before they are switched on on your side.
 - On others' screens each copy of your avatar casts its own laser to place the mark, so its position can differ very slightly. Someone who joins later does not see the mark until you mark again.
 - Menu language, colours, placement and detection angles are baked into the avatar at build time.
 
 ## Performance
 
-Every feature on (the defaults, debug meter off). The difference in the VRChat SDK performance stats (PC) between Lapwing with and without the watch (0.1.0, VRChat SDK 3.10.5).
+Every feature on (the defaults, debug meter off). The difference in the VRChat SDK performance stats (PC) between Lapwing with and without the watch (0.1.1, VRChat SDK 3.10.5).
 
 | Stat | Added by the watch |
 |---|---|
-| Polygons | 4,688 (4,610 of them the scan wave) |
-| Bounds | the avatar's size (Lapwing 1.00 × 1.65 × 0.60 m) → **66.83 × 59.84 × 30.00 m** — the waypoint laser and the scan wave. Leave both out and it does not change |
-| Skinned Meshes / Meshes | 3 / 22 |
-| Material Slots | 25 |
-| Bones | 2 |
+| Polygons | 4,693 (4,610 of them the scan wave) |
+| Bounds | the avatar's size (Lapwing 1.00 × 1.65 × 0.60 m) → **66.83 × 59.84 × 30.00 m** — the waypoint laser and the scan wave. Leave both out and it stays about the avatar's size (the prewarm's 0.6 m box on the chest can add a few cm) |
+| Skinned Meshes / Meshes | 2 / 23 |
+| Material Slots | 30 (5 of them the prewarm) |
+| Bones | 1 |
 | Lights | **2** (flashlight and depth light — both switched on only on the wearer's side) |
 | Contacts | 0 (the 128 contacts — 126 receivers, 2 senders — are all Local Only, which this stat leaves out) |
 | Constraints / Constraint Depth | 18 / 18 (all VRC constraints) |
 | Raycasts | 2 |
-| Texture Memory | 1.05 MB |
-| PhysBones · Particle Systems · Trail / Line Renderers · Cloths · Physics Colliders / Rigidbodies · Audio Sources · Animators | 0 |
+| Texture Memory | 1.50 MB (0.45 MB of it the light drip's baked pictures) |
+| Animators | 1 (the prewarm's, Cull Completely — it stops while nobody sees it) |
+| PhysBones · Particle Systems · Trail / Line Renderers · Cloths · Physics Colliders / Rigidbodies · Audio Sources | 0 |
 | Synced parameters | 8 bits (of 256) |
-| FX layers / FX parameters | 15 / 150 (including unsynced internal values, mostly the radar cells) |
-| GrabPass | 2 (glass blur, light drip) |
+| FX layers / FX parameters | 15 / 151 (including unsynced internal values, mostly the radar cells) |
+| GrabPass | 0 |
 
 - The 13 menu icons (256×256; 14 with the debug meter) are only used by the Expression Menu and are not in Texture Memory.
 
@@ -170,8 +173,8 @@ Names as they appear in the inspector with Menu language set to English. Double-
 | | Coordinates | The watch's world position next to the date (X Y Z, 0.1 m) |
 | | Compass | North (the world's +Z) on the disc's ring |
 | | Session time | How long you have been in this world (counted from when the avatar loaded; your screen only) — 1 FX layer |
-| | Glass blur | Blurs what shows through the disc and the clock — 1 GrabPass (a GPU cost for everyone who sees it) |
-| | └ Light drip | Seen from the side, the light runs down to your wrist; gone when you look at the watch — 1 more GrabPass. Left out along with the blur |
+| | Glass blur | A smoky glass behind the disc and the clock that catches the surroundings softly (the world's reflection probe, blurred). No screen copy |
+| | Light drip | Seen from the side, the light runs down to your wrist; gone when you look at the watch. Reads two pictures of this watch baked at build time (about 0.5 MB) and draws the time, radar, mute and voice live — no screen copy. Works with the glass off too |
 | Placement (× forearm) | Along the forearm | Where the watch sits from the elbow (0) to the wrist joint (1) (0.6–1, default 0.88) |
 | | Face height | Height of the watch face above the forearm's axis (0.03–0.2, default 0.09). Raise it if the face sinks into a thick sleeve |
 | Detection (°) | Face — open / close | The watch face turned toward your eyes within this angle opens it (default 40); beyond the close angle it closes (default 55) |
@@ -231,6 +234,7 @@ Console warnings are in English. **Last build** in the inspector shows the same 
 
 ## Changelog
 
+- **0.1.1** (2026-11-01): The first opening no longer stalls — smaller watch shaders (first draw on a cold shader cache about 1.4–1.9 s → about 0.35 s in our test) and a prewarm that draws them once when the avatar first comes into view. Glass and light drip without GrabPass (no screen copies): the glass shows the world's reflection probe blurred, the drip reads pictures of the watch baked at build time and draws the time, radar, mute and voice live, and no longer needs the glass. While the watch is closed the wearer's side no longer works out the radar cells.
 - **0.1.0** (2026-10-30): First release.
 
 ## Notes

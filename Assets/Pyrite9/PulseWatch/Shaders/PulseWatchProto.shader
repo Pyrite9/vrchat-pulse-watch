@@ -145,6 +145,15 @@ Shader "Pyrite9/PulseWatch/Proto"
             #pragma fragment frag
             #pragma target 3.5
             #pragma multi_compile_instancing
+            // PW_BAKE: only on the build-time bake's temporary copies (PulseWatchBake) — hides what changes (plate text and gauge
+            // fill; disc sweep, scan front, outer ring, ticks, +, count tab), which the light drip draws live. No saved material
+            // has it, so avatar builds strip the variant and ship only the PW_LIVE 1 code
+            #pragma shader_feature_local _ PW_BAKE
+            #ifdef PW_BAKE
+                #define PW_LIVE 0
+            #else
+                #define PW_LIVE 1
+            #endif
             #include "UnityCG.cginc"
             #include "PulseWatchTime.cginc"
 
@@ -168,7 +177,36 @@ Shader "Pyrite9/PulseWatch/Proto"
             float _PairFar, _CellRFar;
 
             struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; float4 d1 : TEXCOORD1; UNITY_VERTEX_INPUT_INSTANCE_ID };
-            struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float2 wp : TEXCOORD1; UNITY_VERTEX_OUTPUT_STEREO };
+            struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float2 wp : TEXCOORD1; nointerpolation uint2 cells : TEXCOORD2; UNITY_VERTEX_OUTPUT_STEREO };
+            static uint2 gCells = uint2(0u, 0u);   // B: the occupied cells, decided once per vertex (bit = band x 12 + dir)
+
+            // 1 on a line of half-width w around d = 0, with a soft edge in screen pixels
+            float Line (float d, float w) { float aa = max(fwidth(d), 1e-5); return saturate((w - abs(d)) / aa + 0.5); }
+            float Box (float2 p, float2 lo, float2 hi) { float2 aa = max(fwidth(p), 1e-5); float2 a = saturate((p - lo) / aa + 0.5) * saturate((hi - p) / aa + 0.5); return a.x * a.y; }
+            float Fill (float d) { return saturate(-d / max(fwidth(d), 1e-5) + 0.5); }
+            float4 Over (float4 dst, float3 rgb, float a) { return float4(rgb * a + dst.rgb * (1.0 - a), a + dst.a * (1.0 - a)); }
+            float4 Add (float4 dst, float3 rgb, float k) { return float4(dst.rgb + rgb * k, dst.a); }
+            float Hash (float x) { return frac(sin(x * 91.345) * 47453.5453); }
+            float Pick (float4 v, float i) { return i < 0.5 ? v.x : (i < 1.5 ? v.y : v.z); }
+
+            // ---- position and head count (D22) ----
+
+            // ---- radar cells (D23) ----
+
+            #include "PulseWatchCells.cginc"
+
+            uint2 CellBitsRaw ()
+            {
+                LoadRad();
+                uint2 bits = uint2(0u, 0u);
+                [loop] for (uint d = 0u; d < 12u; d++)
+                    [loop] for (uint b = 0u; b < 5u; b++)
+                        if (CellShown(d, b) > 0.5) { uint k = b * 12u + d; if (k < 32u) bits.x |= 1u << k; else bits.y |= 1u << (k - 32u); }
+                return bits;
+            }
+            float CellBit (uint k) { return (float)(((k < 32u ? gCells.x : gCells.y) >> (k & 31u)) & 1u); }
+            uint Pop (uint x) { x = x - ((x >> 1) & 0x55555555u); x = (x & 0x33333333u) + ((x >> 2) & 0x33333333u); return (((x + (x >> 4)) & 0x0F0F0F0Fu) * 0x01010101u) >> 24; }   // countbits is SM5 only
+            uint CountCells () { return Pop(gCells.x) + Pop(gCells.y); }
 
             v2f vert (appdata v)
             {
@@ -205,91 +243,11 @@ Shader "Pyrite9/PulseWatch/Proto"
                 if (abs(_Mode - 4.0) < 0.5) o.wp = v.d1.xy;
                 // 1: the layer of this quad of the layered disc (D42)
                 if (abs(_Mode - 1.0) < 0.5) o.wp = float2(_Layered > 0.5 ? v.d1.x : -1.0, 0.0);
+                // B: the disc decides its 60 cells here (24 vertices) instead of on every pixel
+                if (abs(_Mode - 1.0) < 0.5 && _Radar > 0.5 && (_Layered < 0.5 || abs(v.d1.x - 2.0) < 0.5 || abs(v.d1.x - 5.0) < 0.5)) o.cells = CellBitsRaw();   // the cells' layer and the count tab's
                 return o;
             }
 
-            // 1 on a line of half-width w around d = 0, with a soft edge in screen pixels
-            float Line (float d, float w) { float aa = max(fwidth(d), 1e-5); return saturate((w - abs(d)) / aa + 0.5); }
-            float Box (float2 p, float2 lo, float2 hi) { float2 aa = max(fwidth(p), 1e-5); float2 a = saturate((p - lo) / aa + 0.5) * saturate((hi - p) / aa + 0.5); return a.x * a.y; }
-            float Fill (float d) { return saturate(-d / max(fwidth(d), 1e-5) + 0.5); }
-            float4 Over (float4 dst, float3 rgb, float a) { return float4(rgb * a + dst.rgb * (1.0 - a), a + dst.a * (1.0 - a)); }
-            float4 Add (float4 dst, float3 rgb, float k) { return float4(dst.rgb + rgb * k, dst.a); }
-            float Hash (float x) { return frac(sin(x * 91.345) * 47453.5453); }
-            float Pick (float4 v, float i) { return i < 0.5 ? v.x : (i < 1.5 ? v.y : v.z); }
-
-            // ---- position and head count (D22) ----
-
-            // ---- radar cells (D23) ----
-
-            // receivers (slices) per cell by ring (D36)
-            uint Slices (uint band) { return band < 2u ? 1u : (band < 4u ? 2u : 4u); }
-
-            // proximity of the nearest head to slice m of the ring (m = dir x slices + slice, wrapped): 0 = none
-            float SliceP (uint m, uint band)
-            {
-                m %= 12u * Slices(band);
-                float4 v;
-                if (band == 0u) { float4 a[3] = { _Rad0_0, _Rad0_1, _Rad0_2 }; v = a[m / 4u]; }
-                else if (band == 1u) { float4 a[3] = { _Rad1_0, _Rad1_1, _Rad1_2 }; v = a[m / 4u]; }
-                else if (band == 2u) { float4 a[6] = { _Rad2_0, _Rad2_1, _Rad2_2, _Rad2_3, _Rad2_4, _Rad2_5 }; v = a[m / 4u]; }
-                else if (band == 3u) { float4 a[6] = { _Rad3_0, _Rad3_1, _Rad3_2, _Rad3_3, _Rad3_4, _Rad3_5 }; v = a[m / 4u]; }
-                else { float4 a[12] = { _Rad4_0, _Rad4_1, _Rad4_2, _Rad4_3, _Rad4_4, _Rad4_5, _Rad4_6, _Rad4_7, _Rad4_8, _Rad4_9, _Rad4_10, _Rad4_11 }; v = a[m / 4u]; }
-                uint k = m % 4u;
-                return k == 0u ? v.x : (k == 1u ? v.y : (k == 2u ? v.z : v.w));
-            }
-
-            // the highest reading of ring nb's slices over slice m of the ring band (the same direction)
-            float SliceAcross (uint m, uint band, uint nb)
-            {
-                uint s = Slices(band), sn = Slices(nb);
-                float p = 0.0;
-                if (sn <= s) p = SliceP(m * sn / s, nb);
-                else { [unroll] for (uint i = 0u; i < 4u; i++) if (i < sn / s) p = max(p, SliceP(m * (sn / s) + i, nb)); }
-                return p;
-            }
-
-            float CellR (uint band) { return band == 0u ? _CellR.x : (band == 1u ? _CellR.y : (band == 2u ? _CellR.z : (band == 3u ? _CellR.w : _CellRFar))); }
-            float CellMid (uint band) { float e[6] = { 0.4, 1.5, 3.0, 5.0, 8.0, 14.0 }; return 0.5 * (e[band] + e[band + 1u]); }
-
-            // the ring neighbour nb (same direction) takes the head: it is nearer, and the two are not far enough apart for two heads
-            bool LosesAcross (float p, uint band, float pn, uint nb)
-            {
-                if (pn <= 0.001) return false;
-                float r = CellR(band), rn = CellR(nb);
-                float d = (1.0 - p) * r + _PairK.x, dn = (1.0 - pn) * rn + _PairK.x;
-                bool two = d + dn < abs(CellMid(nb) - CellMid(band)) - _PairK.y * min(r, rn);
-                return !two && (dn < d || (dn == d && nb < band));
-            }
-
-            // a head is in this slice unless a neighbour in the ring reads higher and the pair could be one head (ties go clockwise),
-            // or the ring inside / outside in the same direction is nearer to it
-            float SliceShown (uint m, uint band)
-            {
-                float p = SliceP(m, band);
-                float pair = band == 0u ? _Pair.x : (band == 1u ? _Pair.y : (band == 2u ? _Pair.z : (band == 3u ? _Pair.w : _PairFar)));
-                float ccw = SliceP(m + 12u * Slices(band) - 1u, band), cw = SliceP(m + 1u, band);
-                bool keep = (p > ccw || p + ccw >= pair) && (p >= cw || p + cw >= pair);
-                if (band > 0u) keep = keep && !LosesAcross(p, band, SliceAcross(m, band, band - 1u), band - 1u);
-                if (band < 4u) keep = keep && !LosesAcross(p, band, SliceAcross(m, band, band + 1u), band + 1u);
-                return (p > 0.001 && keep) ? 1.0 : 0.0;
-            }
-
-            // a cell is occupied when any of its slices is
-            float CellShown (uint dir, uint band)
-            {
-                uint s = Slices(band);
-                float on = 0.0;
-                [unroll] for (uint i = 0u; i < 4u; i++) if (i < s) on = max(on, SliceShown(dir * s + i, band));
-                return on;
-            }
-
-            uint CountCells ()
-            {
-                float c = 0.0;
-                [loop] for (uint d = 0u; d < 12u; d++)
-                    [unroll] for (uint b = 0u; b < 5u; b++) c += CellShown(d, b);
-                return (uint)c;
-            }
 
             // a small head-and-shoulders mark, size h, its bottom left at o
             float Person (float2 p, float2 o, float h)
@@ -397,20 +355,20 @@ Shader "Pyrite9/PulseWatch/Proto"
                 float ts = 0.13;
                 float tw = PwWidth(gs, n, ts);
                 o = Over(o, acc, Box(p, float2(0.0, 0.82), float2(0.11 + tw, 1.0)) * inside);
-                o = Over(o, _Back.rgb, PwFill(PwText(p, dpx, dpy, 0.06, 0.86, ts, gs, n), dpx, dpy));
+                if (PW_LIVE) o = Over(o, _Back.rgb, PwFill(PwText(p, dpx, dpy, 0.06, 0.86, ts, gs, n), dpx, dpy));
                 float cx0 = 0.14 + tw;
                 // the wearer's position right of the tab (D22: the plate's own world position)
-                if (_CoordOn > 0.5) o = Coords(o, p, dpx, dpy, cx0, A - 0.12, 0.865, 0.105);
+                if (_CoordOn > 0.5 && PW_LIVE) o = Coords(o, p, dpx, dpy, cx0, A - 0.12, 0.865, 0.105);
                 // big HH:MM, seconds in accent
                 float big = 0.52, by = 0.30, x0 = 0.07;
                 PwHourMinute(t, gs, n);
                 float wBig = PwWidth(gs, n, big);
-                o = Over(o, ink, PwFill(PwText(p, dpx, dpy, x0, by, big, gs, n), dpx, dpy));
+                if (PW_LIVE) o = Over(o, ink, PwFill(PwText(p, dpx, dpy, x0, by, big, gs, n), dpx, dpy));
                 uint ss[PW_MAX_GLYPHS]; uint sn;
                 PwSeconds(t, ss, sn);
-                o = Over(o, acc, PwFill(PwText(p, dpx, dpy, x0 + wBig + 0.04, by, 0.24, ss, sn), dpx, dpy));
+                if (PW_LIVE) o = Over(o, acc, PwFill(PwText(p, dpx, dpy, x0 + wBig + 0.04, by, 0.24, ss, sn), dpx, dpy));
                 // this client's FPS above the seconds (D25), the wearer's copy only — on others' copies it would be the viewer's
-                if (_FpsOn > 0.5) o = Fps(o, p, dpx, dpy, x0 + wBig + 0.04, 0.60, 0.13);
+                if (_FpsOn > 0.5 && PW_LIVE) o = Fps(o, p, dpx, dpy, x0 + wBig + 0.04, 0.60, 0.13);
                 // seconds gauge: 60 segments under the time, lit up to now
                 // session time right of it (D27 1), the wearer's copy only — the gauge gets shorter
                 float gx0 = x0, gx1 = _SesOn > 0.5 ? A - 0.62 : A - 0.20;
@@ -423,7 +381,7 @@ Shader "Pyrite9/PulseWatch/Proto"
                 }
                 float u = (p.x - gx0) / (gx1 - gx0);
                 float inGauge = Box(p, float2(gx0, 0.12), float2(gx1, 0.175)) * step(0.25, frac(u * 60.0));
-                float lit = step(floor(u * 60.0), t.live ? (float)t.second - 0.5 : -1.0);
+                float lit = step(floor(u * 60.0), t.live && PW_LIVE ? (float)t.second - 0.5 : -1.0);
                 o = Over(o, acc, inGauge * lit * 0.95);
                 o = Over(o, ink, inGauge * (1.0 - lit) * 0.18);
                 o = Over(o, ink, Line(p.x - gx0 - (gx1 - gx0) * 0.25, 0.003) * step(0.10, p.y) * step(p.y, 0.195) * 0.5);
@@ -461,7 +419,7 @@ Shader "Pyrite9/PulseWatch/Proto"
                 // muted blinks slowly (D7's proposal, taken 10-51): the red dims to 35% and back every 1.6 s, so it reads without the colour
                 float blink = muted ? 0.675 + 0.325 * cos(_Time.y * 6.2832 / 1.6) : 1.0;
                 // the ring layer only: the layer is constant over each of the disc's quads, so the branch keeps fwidth whole
-                if (Lay(4.0) > 0.5)
+                if (Lay(4.0) > 0.5 && PW_LIVE)   // bake: the ring layer comes live from the drip (mute / voice)
                 {
                     float3 ringC = muted ? Red * blink : ink, plusC = muted ? Red * blink : acc;
                     o = Add(o, ringC, Line(r - 0.965, 0.007) * step(7.0, gapDeg) * 0.85);
@@ -486,6 +444,9 @@ Shader "Pyrite9/PulseWatch/Proto"
                         o = Add(o, acc, exp(-abs(r - 0.965) / (0.02 + 0.03 * v)) * step(r, 1.0) * v * 0.85);
                         o = Add(o, acc, (Line(t5, 0.0025) * step(0.905, r) * step(r, 0.935) * 0.5 + Line(t30, 0.004) * step(0.875, r) * step(r, 0.94)) * v * 0.7);
                     }
+                }
+                if (Lay(4.0) > 0.5)
+                {
                     // heading: accent wedge at 12 on the ring
                     float2 hq = q - float2(0.0, 0.975);
                     o = Over(o, acc, Fill(max(abs(hq.x) * 1.7 + hq.y - 0.02, -hq.y)));
@@ -514,7 +475,7 @@ Shader "Pyrite9/PulseWatch/Proto"
                         if (_ScanR >= Metres[i] && _ScanR < Metres[i + 1]) sweepR = lerp(Edge[i], Edge[i + 1], (_ScanR - Metres[i]) / (Metres[i + 1] - Metres[i])) * RadarR;
                     }
                     // the sweep's layer (3) never reads it: skip the slice lookups there
-                    float on = band < -0.5 || abs(gLayer - 3.0) < 0.5 ? 0.0 : CellShown(dir, (uint)band) * reached;
+                    float on = band < -0.5 || abs(gLayer - 3.0) < 0.5 ? 0.0 : CellBit((uint)band * 12u + dir) * reached;
                     // occupied cell: hatched fill inset from its borders + a bright outer edge
                     float cdeg = abs(frac(deg / 30.0 + 0.5) - 0.5) * 30.0;
                     float inset = Box(float2(cdeg * arcK, r), float2(-1.0, lo + 0.012), float2(15.0 * arcK - 0.012, hi - 0.012));
@@ -522,13 +483,13 @@ Shader "Pyrite9/PulseWatch/Proto"
                     o = Add(o, acc, inset * on * (0.25 + 0.35 * hatch) * Lay(2.0));
                     o = Add(o, acc, Line(r - (hi - 0.014), 0.006) * step(cdeg * arcK, 15.0 * arcK - 0.012) * on * 1.1 * Lay(2.0));
                     // scan front
-                    o = Add(o, acc, Line(r - sweepR, 0.006) * step(0.001, sweepR) * 0.9 * Lay(3.0));
+                    if (PW_LIVE) o = Add(o, acc, Line(r - sweepR, 0.006) * step(0.001, sweepR) * 0.9 * Lay(3.0));
                     // turning sweep with a fading trail: decoration, one turn in 4 s clockwise by the shader's clock (D55)
                     float sw = frac(_Time.y / 4.0) * 360.0;
                     float behind = frac((sw - deg) / 360.0);
                     float sd = abs(frac((deg - sw) / 360.0 + 0.5) - 0.5) * 360.0 * arcK;
-                    o = Add(o, acc, exp(-behind * 360.0 / 22.0) * inGrid * 0.16 * Lay(3.0));
-                    o = Add(o, acc, Line(sd, 0.003) * inGrid * 0.6 * Lay(3.0));
+                    if (PW_LIVE) o = Add(o, acc, exp(-behind * 360.0 / 22.0) * inGrid * 0.16 * Lay(3.0));
+                    if (PW_LIVE) o = Add(o, acc, Line(sd, 0.003) * inGrid * 0.6 * Lay(3.0));
                     // ring distances (m) on the 1 o'clock spoke, small and dim, hidden under a lit cell (the grid's layer)
                     if (Lay(1.0) > 0.5)
                     {
@@ -551,7 +512,7 @@ Shader "Pyrite9/PulseWatch/Proto"
                 o = Over(o, acc, Fill(max(abs(sp.x) * 1.9 + sp.y, -sp.y * 2.2 - 0.06) - 0.07) * Lay(5.0));
                 o *= disc;
                 // occupied-cell count: a tab outside the ring at the top left (D22), the wearer's copy only
-                if (_CountOn > 0.5 && Lay(5.0) > 0.5)
+                if (_CountOn > 0.5 && Lay(5.0) > 0.5 && PW_LIVE)
                 {
                     float outer = step(1.0, r);
                     o = Over(o, _Back.rgb, Box(q, float2(-1.0, 0.74), float2(-0.62, 1.0)) * outer * _Back.a);
@@ -715,8 +676,8 @@ Shader "Pyrite9/PulseWatch/Proto"
                 if (_Mode > 5.5) return Reveal(Compass(i.uv, i.wp.x), i.uv, false);
                 if (_Mode > 4.5) return Reveal(WpDisc(i.uv, i.wp) * (_Pend > 0.5 ? 0.4 + 0.15 * sin(_Time.y * 6.2832) : 1.0), i.uv, false);
                 if (_Mode > 3.5) return i.wp.x > 0.5 ? ButtonSide(i.wp.y) : WpButton(i.uv);
-                if (abs(_Mode - 1.0) < 0.5) { gLayer = i.wp.x; return Reveal(Disc(i.uv), i.uv, gLayer < -0.5 || abs(gLayer - 1.0) < 0.5); }
-                return _Mode < 0.5 ? Plate(i.uv) : (_Mode < 1.5 ? Disc(i.uv) : (_Mode < 2.5 ? Meter(i.uv) : Beam(i.uv)));
+                if (abs(_Mode - 1.0) < 0.5) { gLayer = i.wp.x; gCells = i.cells; return Reveal(Disc(i.uv), i.uv, gLayer < -0.5 || abs(gLayer - 1.0) < 0.5); }
+                return _Mode < 2.5 ? Meter(i.uv) : Beam(i.uv);   // A: modes 0 / 1 returned above — the old ternary inlined Plate and Disc a second time
             }
             ENDCG
         }

@@ -398,21 +398,19 @@ namespace Pyrite9.PulseWatch
                     "このワールドにいる時間（アバターの読み込みから）を秒のゲージの右に — 自分の画面だけ。FX レイヤー 1。",
                     "이 월드에 있은 시간(아바타 로드부터)을 초 게이지 오른쪽에 — 내 화면에만. FX 레이어 1개."),
                 Check("sessionTime", T(lang, "Time in this world", "ワールドの滞在時間", "월드 체류 시간"))));
-            // light drip (D41) reads the screen the blur copied: a child row of the blur, dimmed while the blur is off
+            // glass and light drip (D41): side by side since 10-119 — neither reads the screen, so the drip no longer needs the glass
             var glass = new VisualElement(); glass.AddToClassList("pw-group");
             grid.Add(glass);
             glass.Add(Row(T(lang, "Glass blur", "すりガラス", "유리 블러"),
-                "Glass Blur — " + T(lang, "Frosted glass: what shows through the disc and the clock is blurred. One GrabPass (the screen copied once a frame for everyone who sees it — a GPU cost on their side), 2 quads.",
-                    "すりガラス：円盤と時計の向こうに見えるものをぼかします。GrabPass 1 つ（見ている全員の画面で毎フレーム 1 回コピー — その人の GPU 負荷）、クアッド 2。",
-                    "유리 블러: 원판과 시계 너머로 비치는 것을 흐리게. GrabPass 1개(보는 모든 사람 화면에서 프레임마다 한 번 복사 — 그 사람 GPU 부담), 쿼드 2개."),
+                "Glass Blur — " + T(lang, "Frosted glass: a smoky glass behind the disc and the clock that catches the surroundings softly (the world's reflection probe, blurred) with a faint sheen. No screen copy (no GrabPass), 2 quads.",
+                    "すりガラス：円盤と時計の後ろに、周りがぼんやり映る（ワールドのリフレクションプローブをぼかしたもの）淡いつやの煙ったガラス。画面コピー（GrabPass）なし、クアッド 2。",
+                    "유리 블러: 원판과 시계 뒤에 주변이 흐릿하게 비치는(월드 반사 프로브를 흐린 것) 옅은 광택의 뿌연 유리. 화면 복사(GrabPass) 없음, 쿼드 2개."),
                 Check("frost", T(lang, "Blur what shows through", "透けた所をぼかす", "비치는 곳 흐리기"))));
-            var dripRow = Child(Row(T(lang, "Light drip", "光のにじみ", "빛 번짐"),
-                "Light Drip — " + T(lang, "Seen from the side, the hologram's light runs straight down to your wrist; gone when you look at the watch, so the radar stays sharp. Needs the glass blur. One more GrabPass (a screen copy a frame for everyone who sees it), 1 quad.",
-                    "横から見ると、ホログラムの光が手首までまっすぐ流れ落ちます。時計を見ているときは消えるので、レーダーはくっきりのまま。すりガラスが必要。GrabPass もう 1 つ（見ている全員の画面で毎フレーム 1 回コピー）、クアッド 1。",
-                    "옆에서 보면 홀로그램 빛이 손목까지 곧게 흘러내림. 시계를 볼 때는 사라져서 레이더는 선명. 유리 블러가 필요. GrabPass 1개 더(보는 모든 사람 화면에서 프레임마다 한 번 복사), 쿼드 1개."),
+            glass.Add(Row(T(lang, "Light drip", "光のにじみ", "빛 번짐"),
+                "Light Drip — " + T(lang, "Seen from the side, the hologram's light runs straight down to your wrist; gone when you look at the watch, so the radar stays sharp. No screen copy: it reads a picture of this watch baked at build time (2 small textures, about 0.5 MB) and draws the time, radar, mute and voice live. 1 more material on the disc, 1 quad.",
+                    "横から見ると、ホログラムの光が手首までまっすぐ流れ落ちます。時計を見ているときは消えるので、レーダーはくっきりのまま。画面コピーなし：ビルド時に焼いたこの時計の絵（小さなテクスチャ 2 枚、約 0.5 MB）を読み、時刻・レーダー・ミュート・声はその場で描きます。円盤のマテリアル 1 つ追加、クアッド 1。",
+                    "옆에서 보면 홀로그램 빛이 손목까지 곧게 흘러내림. 시계를 볼 때는 사라져서 레이더는 선명. 화면 복사 없음: 빌드 때 구운 이 시계의 그림(작은 텍스처 2장, 약 0.5 MB)을 읽고 시각·레이더·음소거·목소리는 그때그때 그림. 원판 머티리얼 1개 추가, 쿼드 1개."),
                 Check("drip", T(lang, "Down to the wrist", "手首まで", "손목까지"))));
-            glass.Add(dripRow);
-            live.Add(() => dripRow.SetEnabled(Pw.frost));
             sec.Add(Label(T(lang, "A feature switched off is left out of the build — no objects, contacts, layers or parameters.",
                 "オフにした機能はビルドに入りません — オブジェクト・コンタクト・レイヤー・パラメーターなし。",
                 "끈 기능은 빌드에서 빠집니다 — 오브젝트·Contact·레이어·파라미터 없음."), "pw-note"));

@@ -143,7 +143,7 @@ float PwGlyph(float2 p, float2 dpx, float2 dpy, float cx, float by, float size, 
 float PwWidth(uint gs[PW_MAX_GLYPHS], uint n, float size)
 {
     float w = 0.0;
-    [unroll] for (uint i = 0; i < PW_MAX_GLYPHS; i++) if (i < n) w += PwAdvance(gs[i]);
+    [loop] for (uint i = 0; i < min(n, (uint)PW_MAX_GLYPHS); i++) w += PwAdvance(gs[i]);   // C: one body, not PW_MAX_GLYPHS
     return w * size;
 }
 
@@ -152,14 +152,11 @@ float PwText(float2 p, float2 dpx, float2 dpy, float x0, float by, float size, u
 {
     float d = PW_SPREAD * size;
     float x = x0;
-    [unroll] for (uint i = 0; i < PW_MAX_GLYPHS; i++)
+    [loop] for (uint i = 0; i < min(n, (uint)PW_MAX_GLYPHS); i++)   // C: one body (tex2Dgrad has its own gradients)
     {
-        if (i < n)
-        {
-            float a = PwAdvance(gs[i]) * size;
-            if (abs(p.x - (x + 0.5 * a)) < 0.5 * size) d = min(d, PwGlyph(p, dpx, dpy, x + 0.5 * a, by, size, gs[i]));
-            x += a;
-        }
+        float a = PwAdvance(gs[i]) * size;
+        if (abs(p.x - (x + 0.5 * a)) < 0.5 * size) d = min(d, PwGlyph(p, dpx, dpy, x + 0.5 * a, by, size, gs[i]));
+        x += a;
     }
     return d;
 }

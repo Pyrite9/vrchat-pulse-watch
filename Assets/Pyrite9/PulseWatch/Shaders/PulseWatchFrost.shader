@@ -1,25 +1,27 @@
-// Pyrite9 Pulse Watch — frosted glass under the hologram (D41, docs/pulse-watch.md 10-56): a quad just under the disc (circle)
-// and one under the clock plate (its shape: _Aspect, bottom right corner cut) redraw what is behind them blurred, so what shows
-// through the hologram's backing reads as glass. One named GrabPass (_PulseWatchGrab): the screen is copied once a frame however
-// many copies of the watch are in view. Drawn before the disc (queue Transparent+9), with the disc's _DepthBias.
+// Pyrite9 Pulse Watch — glass under the hologram (D41, docs/pulse-watch.md 10-56, 10-119): a quad just under the disc (circle),
+// the clock plate (_Aspect, bottom right corner cut) and the waypoint button (_Shape 2). No GrabPass (the screen copy was most of
+// the watch's GPU cost): the reflection probe behind, blurred (high mip) + smoke + fine grain + a fresnel edge + a faint sheen
+// band sliding with the view (_Style 2). Drawn before the disc (queue Transparent+9), with the disc's _DepthBias.
 //   _Reveal (D47): the disc's glass opens with the disc — a circle of that radius (1 = the rim, 1.05+ = all)
-//   _Shape 2 (D44): under the waypoint button — its tab, top right and bottom left corners cut (PulseWatchProto WpButton)
-//   _Blur: blur radius in metres at the quad (turned into screen space per vertex); _Dim darkens the blurred picture a little
 Shader "Pyrite9/PulseWatch/Frost"
 {
     Properties
     {
+        _Style ("Style (0 smoke, 1 probe, 2 probe + sheen)", Float) = 2
         _Shape ("Shape (0 disc, 1 plate, 2 button)", Float) = 0
         _Aspect ("Plate width / height", Float) = 1.8
-        _Blur ("Blur radius (m)", Float) = 0.006
+        _Blur ("(unused) Blur radius (m)", Float) = 0.006
         _Dim ("Darken", Range(0, 1)) = 0.15
         _DepthBias ("Draw over things this close in front (m)", Float) = 0
         _Reveal ("Disc: opening radius (D47)", Float) = 2
+        _Tint ("Smoke tint", Color) = (0.05, 0.065, 0.085, 1)
+        _Smoke ("Smoke cover", Range(0, 1)) = 0.55
+        _ProbeMip ("Probe blur (mip)", Float) = 6
+        _ProbeK ("Probe share", Range(0, 1)) = 0.5
     }
     SubShader
     {
         Tags { "Queue" = "Transparent+9" "RenderType" = "Transparent" "IgnoreProjector" = "True" "VRCFallback" = "Hidden" }
-        GrabPass { "_PulseWatchGrab" }
         Pass
         {
             ZWrite Off
@@ -32,11 +34,11 @@ Shader "Pyrite9/PulseWatch/Frost"
             #pragma multi_compile_instancing
             #include "UnityCG.cginc"
 
-            UNITY_DECLARE_SCREENSPACE_TEXTURE(_PulseWatchGrab);
-            float _Shape, _Aspect, _Blur, _Dim, _DepthBias, _Reveal;
+            float _Style, _Shape, _Aspect, _Dim, _DepthBias, _Reveal, _Smoke, _ProbeMip, _ProbeK;
+            float4 _Tint;
 
             struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
-            struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float4 grab : TEXCOORD1; float2 br : TEXCOORD2; UNITY_VERTEX_OUTPUT_STEREO };
+            struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; float3 wp : TEXCOORD1; float3 n : TEXCOORD2; float3 t : TEXCOORD3; UNITY_VERTEX_OUTPUT_STEREO };
 
             v2f vert (appdata v)
             {
@@ -46,20 +48,17 @@ Shader "Pyrite9/PulseWatch/Frost"
                 UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 float3 wp = mul(unity_ObjectToWorld, float4(v.vertex.xyz, 1.0)).xyz;
                 o.pos = mul(UNITY_MATRIX_VP, float4(wp, 1.0));
-                // depth only, as the hologram: pulled toward the camera so it draws over the wearer's own hand and sleeve
                 float3 toCam = _WorldSpaceCameraPos - wp;
                 float dist = length(toCam);
                 float4 nearP = mul(UNITY_MATRIX_VP, float4(wp + toCam * (min(_DepthBias, dist * 0.8) / max(dist, 1e-5)), 1.0));
                 o.pos.z = nearP.z / nearP.w * o.pos.w;
-                o.grab = ComputeGrabScreenPos(o.pos);
-                // the blur radius in grab uv: _Blur m across the view, projected here (x; y corrected for the aspect)
-                float3 right = normalize(UNITY_MATRIX_V[0].xyz);
-                float4 side = mul(UNITY_MATRIX_VP, float4(wp + right * _Blur, 1.0));
-                float r = length(side.xy / side.w - o.pos.xy / o.pos.w) * 0.5;
-                o.br = float2(r, r * _ScreenParams.x / _ScreenParams.y);
-                o.uv = v.uv;
+                o.uv = v.uv; o.wp = wp;
+                o.n = normalize(unity_ObjectToWorld._m01_m11_m21);   // the quad lies in its object's XZ plane: +Y is its normal
+                o.t = normalize(unity_ObjectToWorld._m00_m10_m20);
                 return o;
             }
+
+            float Hash (float2 p) { return frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
 
             float4 frag (v2f i) : SV_Target
             {
@@ -74,31 +73,37 @@ Shader "Pyrite9/PulseWatch/Frost"
                 }
                 else if (_Shape > 1.5)
                 {
-                    // the button's tab (PulseWatchProto WpButton): x 0..A, y 0..1, corners cut where x + y < 0.22 or > A + 0.78
                     float d = i.uv.x * _Aspect + i.uv.y;
                     float fw = max(fwidth(d), 1e-5);
                     inside = saturate((d - 0.22) / fw + 0.5) * saturate(((_Aspect + 0.78) - d) / fw + 0.5);
                 }
                 else
                 {
-                    // the plate's outline (PulseWatchProto Plate): x 0..A, y 0..1, bottom right corner cut at 45 deg
                     float2 p = float2(i.uv.x * _Aspect, i.uv.y);
                     float cutD = (_Aspect - p.x) + p.y - 0.13;
                     inside = saturate(cutD / max(fwidth(cutD), 1e-5) + 0.5);
                 }
-                float2 uv = i.grab.xy / i.grab.w;
-                // centre + 3 rings x 8 taps, gaussian-ish weights
-                float3 acc = UNITY_SAMPLE_SCREENSPACE_TEXTURE(_PulseWatchGrab, uv).rgb;
-                float wsum = 1.0;
-                [unroll] for (int r = 1; r <= 3; r++)
-                    [unroll] for (int k = 0; k < 8; k++)
-                    {
-                        float a = (k + 0.5 * r) * 0.7853982;
-                        float w = exp(-r * r / 4.5);
-                        acc += UNITY_SAMPLE_SCREENSPACE_TEXTURE(_PulseWatchGrab, uv + float2(cos(a), sin(a)) * i.br * (r / 3.0)).rgb * w;
-                        wsum += w;
-                    }
-                return float4(acc / wsum * (1.0 - _Dim), inside);
+                float3 v = normalize(i.wp - _WorldSpaceCameraPos);   // eye → glass
+                float3 col = _Tint.rgb;
+                float a = _Smoke;
+                if (_Style > 0.5)
+                {
+                    // what is behind, blurred: the reflection probe looked up straight through the glass, at a high mip
+                    float4 env = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, v, _ProbeMip);
+                    float3 behind = DecodeHDR(env, unity_SpecCube0_HDR) * (1.0 - _Dim);
+                    col = lerp(_Tint.rgb, behind, _ProbeK);
+                    a = lerp(_Smoke, 0.85, _ProbeK);
+                }
+                if (_Style > 1.5)
+                {
+                    float cosV = abs(dot(v, i.n));
+                    float fres = pow(1.0 - cosV, 4.0);
+                    float band = dot(v, i.t) * 3.0 + i.uv.x * 2.0 - i.uv.y * 1.2;
+                    float sheen = exp(-pow(frac(band * 0.5) - 0.5, 2.0) * 60.0) * 0.06;
+                    float grain = (Hash(floor(i.uv * 420.0)) - 0.5) * 0.035;
+                    col += fres * 0.18 + sheen + grain;
+                }
+                return float4(max(col, 0.0), inside * a);
             }
             ENDCG
         }

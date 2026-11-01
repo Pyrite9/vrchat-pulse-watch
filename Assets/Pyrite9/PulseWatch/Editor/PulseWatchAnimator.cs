@@ -67,7 +67,10 @@ namespace Pyrite9.PulseWatch
             c.AddParameter(new AnimatorControllerParameter { name = One, type = AnimatorControllerParameterType.Float, defaultFloat = 1f });
             c.AddParameter(Local, AnimatorControllerParameterType.Float);
             if (radar)
+            {
+                c.AddParameter(RadarLive, AnimatorControllerParameterType.Float);
                 foreach (var (k, b, i) in AllSlices()) c.AddParameter(Cell(k, b, i), AnimatorControllerParameterType.Float);
+            }
 
             if (waypoint) WaypointParams(c);
             if (flash)
@@ -84,7 +87,7 @@ namespace Pyrite9.PulseWatch
             // D70: the value layers' trees, gathered into one Direct layer (Values) at the end
             var values = new List<(Motion motion, string weight)>();
             DetectLayer(c, faceOpen, faceClose, gazeOpen, gazeClose, dwell, debug, made);
-            DisplayLayer(c, waypoint, frost, compass, made);
+            DisplayLayer(c, waypoint, frost, compass, radar, made);
             SideLayer(c, plateSpot, waypoint, flash, made);
             if (debug) DebugLayers(c, values, made);
             if (voice) VoiceLayer(c, made);
@@ -101,6 +104,28 @@ namespace Pyrite9.PulseWatch
             }
             if (flash) FlashLayers(c, waypoint, values, made);
             if (values.Count > 0) State(Layer(c, "PulseWatch Values", made), "Values", Direct("PW Values", made, values.ToArray()), made);
+            return c;
+        }
+
+        // prewarm (10-119): a controller of its own for the warm-up renderer — one clip that keeps `path` on for `seconds` and then
+        // switches it off (and holds: no loop). Its Animator culls completely, so the clock only runs while the mesh is in view
+        public static AnimatorController Prewarm(string path, float seconds, List<Object> made)
+        {
+            var c = new AnimatorController { name = "Pyrite9 PulseWatch Prewarm" };
+            made.Add(c);
+            var clip = new AnimationClip { name = "PW Prewarm" };
+            made.Add(clip);
+            var curve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(seconds, 1f), new Keyframe(seconds + 1f / 60f, 0f));
+            for (int i = 0; i < curve.length; i++)
+            {
+                AnimationUtility.SetKeyLeftTangentMode(curve, i, AnimationUtility.TangentMode.Constant);
+                AnimationUtility.SetKeyRightTangentMode(curve, i, AnimationUtility.TangentMode.Constant);
+            }
+            AnimationUtility.SetEditorCurve(clip, Bind(path, typeof(GameObject), "m_IsActive"), curve);
+            var settings = AnimationUtility.GetAnimationClipSettings(clip);
+            settings.loopTime = false;
+            AnimationUtility.SetAnimationClipSettings(clip, settings);
+            State(Layer(c, "PulseWatch Prewarm", made), "Warm", clip, made);
             return c;
         }
 
@@ -155,7 +180,7 @@ namespace Pyrite9.PulseWatch
         // easing out); from PlateOutAt the plate slides out from the disc's centre side to its spot, growing from nothing
         // (PlateOutTime) — its Position Constraint's source1 (the disc centre) weight falls from PlateTuck's to 0. Closing: the
         // fold as before (D43), every value the opening moves written back to rest
-        static void DisplayLayer(AnimatorController c, bool waypoint, bool frost, bool compass, List<Object> made)
+        static void DisplayLayer(AnimatorController c, bool waypoint, bool frost, bool compass, bool radar, List<Object> made)
         {
             var reveal = new List<(string path, System.Type type)> { (Radar, typeof(MeshRenderer)) };
             if (frost) reveal.Add((Face + "/Frost", typeof(MeshRenderer)));
@@ -202,6 +227,13 @@ namespace Pyrite9.PulseWatch
             AnimationUtility.SetEditorCurve(fold, plateW, AnimationCurve.Constant(0f, FoldTime, 0f));
             var closing = State(sm, "Closing", fold, made);
             sm.defaultState = hidden;
+            // 10-119: the radar's cells are worked out on the wearer's copy only while the hologram is up — from opening until it has
+            // folded away (local drivers: others' copies keep 0, their cells are 0 anyway). Closed, the 120-slice tree is skipped
+            if (radar)
+            {
+                Driver(opening, made, Set(RadarLive, 1f));
+                Driver(hidden, made, Set(RadarLive, 0f));
+            }
             // shown = Open and (the wearer or not Hide); transitions are AND-only, so each OR gets two
             foreach (var from in new[] { hidden, closing })
             {
@@ -350,14 +382,15 @@ namespace Pyrite9.PulseWatch
             To(off, on, made).AddCondition(AnimatorConditionMode.If, 0f, IsLocal);
         }
 
-        // the count tab by Local; the slices in a tree weighted by Local — weight 0 on others' copies, where the slices are 0
-        // anyway (local receivers) and the disc keeps the material's 0s
+        // the count tab by Local; the slices in a tree weighted by RadarLive (10-119: the wearer's copy while the hologram is up;
+        // it was Local, so the wearer's copy worked out all 120 slices even closed) — weight 0 on others' copies, where the slices
+        // are 0 anyway (local receivers) and the disc keeps the material's 0s
         static void RadarValues(List<(Motion, string)> values, List<Object> made)
         {
             values.Add((Drive(Local, Radar, "_CountOn", 1f, made), One));
             var cells = new List<(Motion, string)>();
             foreach (var (k, b, i) in AllSlices()) cells.Add((Drive(Cell(k, b, i), Radar, CellProp(k, b, i), 1f, made), One));
-            values.Add((Direct("PW Radar", made, cells.ToArray()), Local));
+            values.Add((Direct("PW Radar", made, cells.ToArray()), RadarLive));
         }
 
         static void ScanLayer(AnimatorController c, bool radar, List<Object> made)

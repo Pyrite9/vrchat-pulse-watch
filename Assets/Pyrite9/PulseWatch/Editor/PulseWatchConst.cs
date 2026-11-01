@@ -6,13 +6,13 @@ namespace Pyrite9.PulseWatch
 {
     static class PulseWatchConst
     {
-        public const string Version = "0.1.0";
+        public const string Version = "0.1.1";
         public const string LogPath = "Logs/Pyrite9_PulseWatch_build.txt";
         public const long LogLimit = 512 * 1024;   // bytes; past this the build log starts over, the previous one kept as .old
         public const string ShaderName = "Pyrite9/PulseWatch/Proto";
         public const string ScanShaderName = "Pyrite9/PulseWatch/Scan";
-        public const string FrostShaderName = "Pyrite9/PulseWatch/Frost";   // the blur under the disc and the plate (D41, GrabPass)
-        public const string DripShaderName = "Pyrite9/PulseWatch/Drip";     // the hologram's light running down to the forearm (D41, GrabPass)
+        public const string FrostShaderName = "Pyrite9/PulseWatch/Frost";   // the glass under the disc and the plate (D41; no GrabPass since 10-119)
+        public const string DripShaderName = "Pyrite9/PulseWatch/Drip";     // the hologram's light running down to the forearm (D41; baked pictures since 10-119)
         public const string GlyphsGuid = "f97988e5840b4dc88720d89e763ac789";   // Textures/PulseWatchGlyphs.png (Source/glyph_atlas.py)
         public const string MenuIconsGuid = "40cac3afea1d401d8c66d4d13ff823b8";   // Textures/MenuIcons/ (Source/menu_icons.py, D69)
 
@@ -78,6 +78,7 @@ namespace Pyrite9.PulseWatch
         public const string MuteSelf = "MuteSelf";                // VRChat built-in: the wearer muted -> the disc's ring red + mic (D27)
         public const string One = "PulseWatch/One";               // constant 1 (Direct blend tree weight)
         public const string Local = "PulseWatch/Local";           // D70: 1 on the wearer's copy (Detect's driver), 0 on others' — IsLocal as a blend tree weight
+        public const string RadarLive = "PulseWatch/RadarLive";   // 10-119: 1 on the wearer's copy while the hologram is up (Display's drivers) — the radar tree's weight
         public const string IsLocal = "IsLocal";
         public const string GestureLeft = "GestureLeft", GestureRight = "GestureRight", VRMode = "VRMode";   // VRChat built-ins
         public const int GesturePoint = 3;                        // D67: the tabs answer only the other hand in this gesture (index out)
@@ -171,7 +172,6 @@ namespace Pyrite9.PulseWatch
         public const float DepthBias = 0.08f;                     // the hologram draws over the wearer's hand / sleeve up to this close in front of it (v7 VR)
         public const float DiscLift = 0.012f;                     // disc above the watch face (clear of sleeves)
         public const float PlateWidth = 0.060f, PlateAspect = 1.8f;
-        public const float FrostBlur = 0.008f;                    // blur radius under the disc / plate (D41, 10-55: 4 mm hardly showed)
         // the radar disc's layers (D42, 10-57 "cells high"): height up the normal per layer — 0 backing, 1 grid + ring distances,
         // 2 occupied cells, 3 sweep + scan front, 4 outer ring / ticks / heading, 5 centre arrow + count tab. D53 (10-64, v27 "cells
         // still too high"): all lower. D56 (10-66, v29 "the backing and the grid apart, a little higher, gaps a little wider"):
@@ -185,6 +185,9 @@ namespace Pyrite9.PulseWatch
         public const float PlateDripHalfWidth = 0.045f;           // the plate's own board (D43): across the view, over the plate's half diagonal
         public const float PlateDripTop = 0.02f;                  // and up Face's normal from the plate's origin (the plate leans toward the eyes)
         public const float DripBias = 0.03f;                      // drawn over skin / sleeve this much farther than the hologram's own DepthBias
+        public const float DripLiveK = 2.5f;                      // the disc drip's live sweep / cells (10-119: close to the GrabPass drip's)
+        public const float PrewarmSeconds = 0.25f;                // prewarm (10-119): visible time before the warm-up mesh switches off (a few frames even at low fps)
+        public const float PrewarmTri = 0.0001f, PrewarmBounds = 0.6f;   // its triangles (m, inside the chest) and its bounds (m, generous for the frustum test)
         public const float PlateLift = 0.015f;                    // plate lifted from its spot toward the wearer's eyes (D19) — just in front of the disc (v10 VR: 40 too high)
         public const float PlateOut = 0.055f, PlateDown = 0.050f; // the plate's spot on the disc plane: toward the hand / below the disc centre (D19 A). Lifted along the
                                                                   // line of sight it stays on that spot on screen whatever the angle (lifted along the face normal it
