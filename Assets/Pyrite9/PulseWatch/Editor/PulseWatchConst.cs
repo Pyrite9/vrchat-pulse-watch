@@ -6,7 +6,7 @@ namespace Pyrite9.PulseWatch
 {
     static class PulseWatchConst
     {
-        public const string Version = "0.1.1";
+        public const string Version = "0.1.2";
         public const string LogPath = "Logs/Pyrite9_PulseWatch_build.txt";
         public const long LogLimit = 512 * 1024;   // bytes; past this the build log starts over, the previous one kept as .old
         public const string ShaderName = "Pyrite9/PulseWatch/Proto";
@@ -28,6 +28,7 @@ namespace Pyrite9.PulseWatch
         public const string PlateBase = Panel + "/PlateBase";     // the plate's spot on the disc plane (Side clips flip its X); PlateAim under it turns to the eyes, PlateTip on it
         public const string Plate = Panel + "/Plate";             // follows PlateTip (Position Constraint), turned as the disc; the clock Plate/Quad and Plate/Beam0-3
         public const string PlateQuad = Plate + "/Quad";
+        public const string PlateDrip = Plate + "/Drip";          // the plate's light drip board (D43, 10-120); gets _SesOn as the quad does (10-122)
         public const string Meter = Watch + "/Debug";
         public const string Button = Plate + "/Button";           // the waypoint button under the plate (D28 B); PressL / PressR under it: the depth receivers (D30)
         public const string ButtonQuad = Button + "/Quad";

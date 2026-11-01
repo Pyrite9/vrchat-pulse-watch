@@ -1,6 +1,6 @@
 # Pyrite9 Pulse Watch
 
-Version 0.1.1 (2026-11-01)
+Version 0.1.2 (2026-11-01)
 
 A pop-up wristwatch gimmick for VRChat avatars. Drop the prefab into a humanoid avatar and it fits the watch to that avatar's forearm when you build.
 Turn your wrist to your eyes as if checking the time and a hologram opens over the watch — your local time, a radar of the people around you, a scan wave, and waypoint and flashlight buttons you press with a finger. Move the wrist away and it folds up.
@@ -234,6 +234,7 @@ Console warnings are in English. **Last build** in the inspector shows the same 
 
 ## Changelog
 
+- **0.1.2** (2026-11-01): Worn on the inside of the wrist, the light drip no longer shows a stray block at the edge of the disc. The drip's two baked pictures each caught part of the other (the plate's date tab in the disc's, the disc's rim in the plate's); now each is shot alone. On your own screen with Session time on, the drip of the seconds gauge no longer runs ahead of the gauge into the session time. Import over 0.1.1 and re-upload the avatar.
 - **0.1.1** (2026-11-01): The first opening no longer stalls — smaller watch shaders (first draw on a cold shader cache about 1.4–1.9 s → about 0.35 s in our test) and a prewarm that draws them once when the avatar first comes into view. Glass and light drip without GrabPass (no screen copies): the glass shows the world's reflection probe blurred, the drip reads pictures of the watch baked at build time and draws the time, radar, mute and voice live, and no longer needs the glass. While the watch is closed the wearer's side no longer works out the radar cells.
 - **0.1.0** (2026-10-30): First release.
 

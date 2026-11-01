@@ -36,6 +36,7 @@ Shader "Pyrite9/PulseWatch/Drip"
         _PlatePx ("Plate: one baked pixel in text units", Float) = 0.004
         _InkBake ("Plate: the time's colour as baked", Color) = (1, 1, 1, 1)
         _AccBake ("Plate: the seconds' colour as baked", Color) = (0, 1, 0.6, 1)
+        _SesOn ("Plate: session time on (the wearer's copy, from the FX) — the gauge is shorter", Float) = 0
         _UtcOffsetMin ("Wearer UTC offset (minutes)", Integer) = 540
         _DstStart ("Daylight saving start", Vector) = (0, 0, 0, 0)
         _DstEnd ("Daylight saving end", Vector) = (0, 0, 0, 0)
@@ -108,7 +109,7 @@ Shader "Pyrite9/PulseWatch/Drip"
             float _Taps, _SkipTop, _Discard;
             float _Live, _LiveBits, _LiveK, _DynH, _DiscR, _ScanR, _PairFar, _CellRFar;
             float4 _Acc, _Pair, _CellR, _PairK;
-            float _Glyph, _PlatePx;
+            float _Glyph, _PlatePx, _SesOn;
             float _TopH, _DiscPx, _Muted, _Voice, _CountOn;
             float4 _Ink, _BackC;
             static const float3 Red = float3(1.0, 0.24, 0.18);   // the Proto's
@@ -232,14 +233,32 @@ Shader "Pyrite9/PulseWatch/Drip"
                 return saturate(0.5 - d / px);
             }
 
+            // board units on the plate plane -> the Proto Plate's text units (x right 0..aspect, y up 0..1)
+            float2 PlateQ (float2 b) { return float2(dot(_PlateM.xy, b), dot(_PlateM.zw, b)) + _PlateT.xy; }
+
+            // the gauge row as the bake drew it (session time off: the long gauge, the code bars) — with _SesOn the Proto draws a shorter
+            // gauge and the session time there, so the drip leaves the baked row out and PlateLive draws the gauge itself (10-122)
+            bool SesRow (float2 q) { return _SesOn > 0.5 && q.x > 0.06 && q.x < _PlateT.z - 0.045 && q.y > 0.10 && q.y < 0.25; }
+
             // the plate's changing text the bake left out (ProtoBake _BakeHide): big HH:MM, the seconds, the gauge fill — at b (board units
             // on the plate plane), laid out as PulseWatchProto Plate does (digits monospaced, so each slot is found without a loop)
             float3 PlateLive (float2 b, uint4 hms)
             {
-                if (hms.w == 0u) return 0.0;
-                float2 q = float2(dot(_PlateM.xy, b), dot(_PlateM.zw, b)) + _PlateT.xy;
+                float2 q = PlateQ(b);
                 float3 r = 0.0;
-                const float big = 0.52, by = 0.30, x0 = 0.07;
+                const float x0 = 0.07;
+                // the gauge ends where the Proto's does: shorter with the session time (the wearer's copy, _SesOn from the FX)
+                float gx1 = _SesOn > 0.5 ? _PlateT.z - 0.62 : _PlateT.w;
+                float u = (q.x - x0) / (gx1 - x0);
+                if (q.y > 0.12 && q.y < 0.175 && u > 0.0 && u < 1.0 && frac(u * 60.0) > 0.25)
+                {
+                    if (hms.w != 0u && floor(u * 60.0) < (float)hms.z - 0.5) r += _AccBake.rgb * 0.95;
+                    else if (_SesOn > 0.5) r += _InkBake.rgb * 0.18;   // the unlit segments (the bake's are the long gauge's)
+                }
+                if (_SesOn > 0.5 && q.y > 0.10 && q.y < 0.195)   // the quarter tick
+                    r += _InkBake.rgb * saturate((0.003 - abs(q.x - x0 - (gx1 - x0) * 0.25)) / _PlatePx + 0.5) * 0.5;
+                if (hms.w == 0u) return r;
+                const float big = 0.52, by = 0.30;
                 float rel = (q.x - x0) / big;
                 if (q.y > by - 0.25 * big && q.y < by + 0.85 * big && rel > -0.25 && rel < 2.6)
                 {
@@ -257,9 +276,6 @@ Shader "Pyrite9/PulseWatch/Drip"
                     uint s = rel < 0.52 ? 0u : 1u;
                     r += _AccBake.rgb * GlyphCov(q, sx0 + ((float)s * 0.52 + 0.26) * ss, by, ss, s == 0u ? hms.z / 10u : hms.z % 10u, _PlatePx);
                 }
-                float u = (q.x - x0) / (_PlateT.w - x0);
-                if (q.y > 0.12 && q.y < 0.175 && u > 0.0 && u < 1.0 && frac(u * 60.0) > 0.25 && floor(u * 60.0) < (float)hms.z - 0.5)
-                    r += _AccBake.rgb * 0.95;
                 return r;
             }
 
@@ -360,7 +376,7 @@ Shader "Pyrite9/PulseWatch/Drip"
                     float3 q = _WorldSpaceCameraPos + d * lam - i.pc;
                     float2 p = float2(dot(q, i.pt), dot(q, az)) / max(i.unit, 1e-6);   // X, Z in board units
                     float2 uv = (p - _BakeRect.xy) / _BakeRect.zw;
-                    if (all(uv >= 0.0) && all(uv <= 1.0)) res = tex2Dlod(_BakeTex, float4(uv, 0.0, 0.0)).rgb;
+                    if (all(uv >= 0.0) && all(uv <= 1.0) && !(_Glyph > 0.5 && SesRow(PlateQ(p)))) res = tex2Dlod(_BakeTex, float4(uv, 0.0, 0.0)).rgb;
                     if (_Glyph > 0.5) res += PlateLive(p, i.hms);
                     if (_Live > 0.5) res += DiscRing(p / _DiscR);
                 }

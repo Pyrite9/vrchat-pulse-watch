@@ -66,7 +66,7 @@ namespace Pyrite9.PulseWatch
                         b.SetFloat("_SesOn", 0f); b.SetFloat("_Muted", 0f); b.SetFloat("_Voice", 0f);
                         temp[m] = b;
                     }
-                    all[i].sharedMaterial = b; all[i].enabled = true; all[i].gameObject.layer = Layer;
+                    all[i].sharedMaterial = b; all[i].enabled = true;   // the layer per shot (Shot): only its own renderers
                 }
                 float discUnit = discBoard.lossyScale.y, plateUnit = plateBoard.lossyScale.y;
                 float discH = DiscLayers[4];   // the outer ring's layer, the brightest
@@ -137,7 +137,13 @@ namespace Pyrite9.PulseWatch
             cam.cullingMask = 1 << Layer; cam.allowMSAA = true; cam.allowHDR = true;
             var rt = new RenderTexture(w, hgt, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear) { antiAliasing = 8 };
             cam.targetTexture = rt;
+            // only this target's renderers on the bake layer: with both on it (0.1.1) the disc's picture caught the plate's date tab
+            // and the plate's the disc's rim where they sat at build time, and the plate moves with the eyes — a stray block of drip
+            // at the disc's edge, worst on the inside of the wrist (10-121). Bake's finally puts every layer back
+            var lay = rs.Select(r => r.gameObject.layer).ToArray();
+            foreach (var r in rs) r.gameObject.layer = Layer;
             cam.Render();
+            for (int i = 0; i < rs.Length; i++) rs[i].gameObject.layer = lay[i];
             var prev = RenderTexture.active; RenderTexture.active = rt;
             var read = new Texture2D(w, hgt, TextureFormat.RGBAHalf, false, true);
             read.ReadPixels(new Rect(0, 0, w, hgt), 0, 0); read.Apply();

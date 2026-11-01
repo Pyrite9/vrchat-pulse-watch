@@ -368,14 +368,18 @@ namespace Pyrite9.PulseWatch
             return tree;
         }
 
-        // one linear clip from the avatar's load, SessionMax long (then it holds); a world change reloads the avatar = 0 again
+        // one linear clip from the avatar's load, SessionMax long (then it holds); a world change reloads the avatar = 0 again.
+        // The plate's drip gets _SesOn too: its gauge must end where the quad's does (10-122 — it ran on the long gauge into the
+        // session time); with the drip off its path is simply missing
         static void SessionLayer(AnimatorController c, List<Object> made)
         {
             var sm = Layer(c, "PulseWatch Session", made);
-            var off = State(sm, "Remote", Clip("PW Session Off", made, Curve(PlateQuad, typeof(MeshRenderer), "material._SesOn", 0f)), made);
+            var off = State(sm, "Remote", Clip("PW Session Off", made, Curve(PlateQuad, typeof(MeshRenderer), "material._SesOn", 0f),
+                Curve(PlateDrip, typeof(MeshRenderer), "material._SesOn", 0f)), made);
             var count = new AnimationClip { name = "PW Session" };
             made.Add(count);
             AnimationUtility.SetEditorCurve(count, Bind(PlateQuad, typeof(MeshRenderer), "material._SesOn"), new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(SessionMax, 1f)));
+            AnimationUtility.SetEditorCurve(count, Bind(PlateDrip, typeof(MeshRenderer), "material._SesOn"), new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(SessionMax, 1f)));
             AnimationUtility.SetEditorCurve(count, Bind(PlateQuad, typeof(MeshRenderer), "material._SessionSec"), AnimationCurve.Linear(0f, 0f, SessionMax, SessionMax));
             var on = State(sm, "Local", count, made);
             sm.defaultState = off;
