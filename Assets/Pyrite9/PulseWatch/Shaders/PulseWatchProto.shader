@@ -67,6 +67,7 @@ Shader "Pyrite9/PulseWatch/Proto"
         _PressD ("Button: depth receiver behind the base (local units)", Float) = 0.015
         _Reveal ("Disc: opening radius (1 = rim, 1.05+ = all — D47)", Float) = 2
         [NoScaleOffset] _Glyphs ("Glyph atlas (SDF)", 2D) = "black" {}
+        _Hour12 ("12-hour clock with AM/PM (0 off — D74)", Integer) = 0
         _UtcOffsetMin ("Wearer UTC offset (minutes)", Integer) = 540
         _DstStart ("Daylight saving start (month, week, weekday / day, minutes — D72)", Vector) = (0, 0, 0, 0)
         _DstEnd ("Daylight saving end (month, week, weekday / day, minutes)", Vector) = (0, 0, 0, 0)
@@ -332,6 +333,31 @@ Shader "Pyrite9/PulseWatch/Proto"
                 return Over(o, _Color.rgb, PwFill(PwText(p, dpx, dpy, x, by, size * 0.62, L, 3u), dpx, dpy));
             }
 
+            // the clock text: big HH:MM from x0 at size `big`, the seconds after it, the FPS above them, and with h12 the AM / PM left of the
+            // HH:MM (D74, 12-hour clock, layout L5 — PulseWatchTime.cginc PW_H12_*; PulseWatchDrip PlateLive repeats it). Called once for
+            // each layout with its numbers as constants, so the 24-hour call folds to exactly the 0.1.2 code (pixel-identical, 4-7-5 T2)
+            float4 Clock (float4 o, float2 p, float2 dpx, float2 dpy, PwTime t, float3 ink, float3 acc, float big, float x0, bool h12)
+            {
+                const float by = 0.30;
+                uint gs[PW_MAX_GLYPHS]; uint n;
+                PwHourMinute(t, gs, n);
+                float wBig = PwWidth(gs, n, big);
+                if (PW_LIVE) o = Over(o, ink, PwFill(PwText(p, dpx, dpy, x0, by, big, gs, n), dpx, dpy));
+                uint ss[PW_MAX_GLYPHS]; uint sn;
+                PwSeconds(t, ss, sn);
+                if (PW_LIVE) o = Over(o, acc, PwFill(PwText(p, dpx, dpy, x0 + wBig + 0.04, by, 0.24, ss, sn), dpx, dpy));
+                // this client's FPS above the seconds (D25), the wearer's copy only — on others' copies it would be the viewer's
+                if (_FpsOn > 0.5 && PW_LIVE) o = Fps(o, p, dpx, dpy, x0 + wBig + 0.04, 0.60, 0.13);
+                // AM / PM, its top level with the big digits' (PW_LIVE 0 = the bake: nothing of the clock is baked)
+                if (PW_LIVE && h12)
+                {
+                    uint ap[PW_MAX_GLYPHS]; uint apn;
+                    PwAmPm(t, ap, apn);
+                    o = Over(o, ink, PwFill(PwText(p, dpx, dpy, PW_H12_AP_X, PW_H12_AP_BY, PW_H12_AP_SIZE, ap, apn), dpx, dpy));
+                }
+                return o;
+            }
+
             float4 Plate (float2 uv)
             {
                 float A = _Aspect;
@@ -359,19 +385,13 @@ Shader "Pyrite9/PulseWatch/Proto"
                 float cx0 = 0.14 + tw;
                 // the wearer's position right of the tab (D22: the plate's own world position)
                 if (_CoordOn > 0.5 && PW_LIVE) o = Coords(o, p, dpx, dpy, cx0, A - 0.12, 0.865, 0.105);
-                // big HH:MM, seconds in accent
-                float big = 0.52, by = 0.30, x0 = 0.07;
-                PwHourMinute(t, gs, n);
-                float wBig = PwWidth(gs, n, big);
-                if (PW_LIVE) o = Over(o, ink, PwFill(PwText(p, dpx, dpy, x0, by, big, gs, n), dpx, dpy));
-                uint ss[PW_MAX_GLYPHS]; uint sn;
-                PwSeconds(t, ss, sn);
-                if (PW_LIVE) o = Over(o, acc, PwFill(PwText(p, dpx, dpy, x0 + wBig + 0.04, by, 0.24, ss, sn), dpx, dpy));
-                // this client's FPS above the seconds (D25), the wearer's copy only — on others' copies it would be the viewer's
-                if (_FpsOn > 0.5 && PW_LIVE) o = Fps(o, p, dpx, dpy, x0 + wBig + 0.04, 0.60, 0.13);
-                // seconds gauge: 60 segments under the time, lit up to now
+                // big HH:MM, seconds in accent, the FPS above them (D74: and AM / PM) — one call for each layout (see Clock)
+                const float gx0 = 0.07;   // the seconds gauge's start, whatever the clock's layout
+                if (_Hour12 != 0) o = Clock(o, p, dpx, dpy, t, ink, acc, PW_H12_BIG, PW_H12_X0, true);
+                else o = Clock(o, p, dpx, dpy, t, ink, acc, 0.52, 0.07, false);
+                // seconds gauge: 60 segments under the time, lit up to now (from 0.07 whatever the clock's layout)
                 // session time right of it (D27 1), the wearer's copy only — the gauge gets shorter
-                float gx0 = x0, gx1 = _SesOn > 0.5 ? A - 0.62 : A - 0.20;
+                float gx1 = _SesOn > 0.5 ? A - 0.62 : A - 0.20;
                 if (_SesOn > 0.5)
                 {
                     uint es[PW_MAX_GLYPHS]; uint en;

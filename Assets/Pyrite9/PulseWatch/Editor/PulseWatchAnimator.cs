@@ -17,7 +17,8 @@
 //            others' copies skip them), the wearer's FPS readout (_FpsOn, D25) and occupied-cell count tab (_CountOn, D22) by
 //            Local, the tabs' press depth, the laser beam's length
 //   Scan     (owner only): Idle -> Wave on Open (ScanTime: scan objects on, _Radius 0 -> reach, the radar's _ScanR with it)
-//            -> Cooldown (to ScanCooldown from the start) -> Wait (until closed) -> Idle
+//            -> Cooldown (to ScanCooldown from the start) -> Wait (until closed) -> Rest (-> Wave on the next Open); _ScanR
+//            written in every state (Idle 100 = none, Cooldown / Wait / Rest the ring at the grid's edge — D57)
 //   Waypoint (D26-D30): WpButton (owner) — depth press under the plate: tap = laser on / off, hold = clear; WpPress -> the
 //            tab's _Press; WpLaser (owner) — the other hand's trigger while the laser hits = mark (WpOn, flip WpSeq), timeout,
 //            menu (WpTap: VR laser on / desktop mark at the feet, WpClear); WpLaserVis (everyone) — the laser on the free hand
@@ -166,11 +167,29 @@ namespace Pyrite9.PulseWatch
                     shut.AddCondition(AnimatorConditionMode.Less, mark, p);
                 }
             }
-            // a Sens outside 0-2 (old saved value) behaves as normal
-            var oddS = To(closed, arming, made);
-            oddS.AddCondition(AnimatorConditionMode.Greater, 2, Sens);
-            oddS.AddCondition(AnimatorConditionMode.Greater, ProxAt(faceOpen[0]), FaceProx);
-            oddS.AddCondition(AnimatorConditionMode.Greater, ProxAt(gazeOpen[0]), GazeProx);
+            // a Sens outside 0-2 (old saved value) behaves as normal — arming, its cancel and the close alike (it only armed
+            // before: a Sens of 3 opened and never closed)
+            float nfo = ProxAt(faceOpen[0]), ngo = ProxAt(gazeOpen[0]), nfc = ProxAt(faceClose[0]), ngc = ProxAt(gazeClose[0]);
+            foreach (var (mode, edge) in new[] { (AnimatorConditionMode.Greater, 2), (AnimatorConditionMode.Less, 0) })
+            {
+                var oddS = To(closed, arming, made);
+                oddS.AddCondition(mode, edge, Sens);
+                oddS.AddCondition(AnimatorConditionMode.Greater, nfo, FaceProx);
+                oddS.AddCondition(AnimatorConditionMode.Greater, ngo, GazeProx);
+                foreach (var (p, mark) in new[] { (FaceProx, nfo), (GazeProx, ngo) })
+                {
+                    var fail = To(arming, closed, made);
+                    fail.AddCondition(mode, edge, Sens);
+                    fail.AddCondition(AnimatorConditionMode.Less, mark, p);
+                }
+                foreach (var (p, mark) in new[] { (FaceProx, nfc), (GazeProx, ngc) })
+                {
+                    var shut = To(open, closed, made);
+                    shut.AddCondition(AnimatorConditionMode.IfNot, 0f, Manual);
+                    shut.AddCondition(mode, edge, Sens);
+                    shut.AddCondition(AnimatorConditionMode.Less, mark, p);
+                }
+            }
             var armed = To(arming, open, made);   // last: only after the dwell with nothing failing
             armed.hasExitTime = true;
             armed.exitTime = 1f;
@@ -314,6 +333,9 @@ namespace Pyrite9.PulseWatch
             t.AddCondition(AnimatorConditionMode.If, 0f, DebugOn);
             To(on, off, made).AddCondition(AnimatorConditionMode.IfNot, 0f, DebugOn);
 
+            // Sens is an Int here: a blend tree reads floats only, but MA's "Harmonize animator parameter types" (NDMF
+            // GlobalTransformations.HarmonizeParameterTypes, after Merge Animator) turns a parameter any 1D tree reads into a Float
+            // and rewrites its Int conditions (Equals k -> between k -/+ 0.1) — Detect's transitions keep working
             foreach (var (p, prop, top) in new[] { (FaceProx, "_DbgFace", 1f), (GazeProx, "_DbgGaze", 1f), (Sens, "_DbgSens", 2f) })
                 values.Add((Drive(p, Meter, prop, top, made), One));
         }
@@ -397,12 +419,29 @@ namespace Pyrite9.PulseWatch
             values.Add((Direct("PW Radar", made, cells.ToArray()), RadarLive));
         }
 
+        // the radar's _ScanR (Proto and the disc's drip board both read it, one renderer): 100 = no scan yet (the material default —
+        // every ring reached, no front); the wave runs it 0 -> reach; after a scan it rests at ScanRestGap under the reach. There
+        // the shader's last band (8 <= _ScanR < 14) still draws the front, at the grid's edge, and every band counts as reached:
+        // the ring left round the grid after a scan (D57) — written by name now, so WD on and off avatars show the same (it was the
+        // wave's last frame left behind with WD off, and the default 100 = no ring with WD on)
+        const float ScanNone = 100f;
+        const float ScanRestGap = 0.03f;   // m: 13.97, where the wave's last frame (90 fps) had left it in game
+
         static void ScanLayer(AnimatorController c, bool radar, List<Object> made)
         {
             float reach = RadarRings[RadarRings.Length - 1];
-            Key[] Hide() => new[] { Curve(ScanRoot, typeof(GameObject), "m_IsActive", 0f), Curve(ScanFloor, typeof(GameObject), "m_IsActive", 0f) };
+            float rest = reach - ScanRestGap;   // >= RadarRings[^2] (all reached) and < reach (front drawn)
+            Key[] Hide(float scanR)
+            {
+                var k = new List<Key> { Curve(ScanRoot, typeof(GameObject), "m_IsActive", 0f), Curve(ScanFloor, typeof(GameObject), "m_IsActive", 0f) };
+                if (radar) k.Add(Curve(Radar, typeof(MeshRenderer), "material._ScanR", scanR));
+                return k.ToArray();
+            }
             var sm = Layer(c, "PulseWatch Scan", made);
-            var idle = State(sm, "Idle", Clip("PW Scan Idle", made, Hide()), made);
+            // Idle: never scanned (default; others' copies stay here). Rest: closed after a scan — the ring stays through the fold
+            // as before; reopening starts the wave at 0 either way
+            var idle = State(sm, "Idle", Clip("PW Scan Idle", made, Hide(ScanNone)), made);
+            var restS = State(sm, "Rest", Clip("PW Scan Rest", made, Hide(rest)), made);
             // fast start easing out (Hermite slopes 1.8x and 0.3x the average speed — monotonic)
             var r = new AnimationCurve(new Keyframe(0f, 0f, 0f, 1.8f * reach / ScanTime), new Keyframe(ScanTime, reach, 0.3f * reach / ScanTime, 0f));
             var wave = new AnimationClip { name = "PW Scan Wave" };
@@ -413,19 +452,22 @@ namespace Pyrite9.PulseWatch
                 AnimationUtility.SetEditorCurve(wave, Bind(path, typeof(MeshRenderer), "material._Radius"), r);
             if (radar) AnimationUtility.SetEditorCurve(wave, Bind(Radar, typeof(MeshRenderer), "material._ScanR"), r);
             var waveS = State(sm, "Wave", wave, made);
-            var cool = State(sm, "Cooldown", Clip("PW Scan Cooldown", made, ScanCooldown - ScanTime, Hide()), made);
-            var wait = State(sm, "Wait", Clip("PW Scan Wait", made, Hide()), made);
+            var cool = State(sm, "Cooldown", Clip("PW Scan Cooldown", made, ScanCooldown - ScanTime, Hide(rest)), made);
+            var wait = State(sm, "Wait", Clip("PW Scan Wait", made, Hide(rest)), made);
             sm.defaultState = idle;
-            var go = To(idle, waveS, made);
-            go.AddCondition(AnimatorConditionMode.If, 0f, Open);
-            go.AddCondition(AnimatorConditionMode.If, 0f, IsLocal);
+            foreach (var from in new[] { idle, restS })
+            {
+                var go = To(from, waveS, made);
+                go.AddCondition(AnimatorConditionMode.If, 0f, Open);
+                go.AddCondition(AnimatorConditionMode.If, 0f, IsLocal);
+            }
             var t1 = To(waveS, cool, made);
             t1.hasExitTime = true;
             t1.exitTime = 1f;
             var t2 = To(cool, wait, made);
             t2.hasExitTime = true;
             t2.exitTime = 1f;
-            To(wait, idle, made).AddCondition(AnimatorConditionMode.IfNot, 0f, Open);
+            To(wait, restS, made).AddCondition(AnimatorConditionMode.IfNot, 0f, Open);
         }
 
         // ---- waypoint (D26-D30, docs/pulse-watch.md 4-5-1) --------------------------------------------------------------

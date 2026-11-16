@@ -51,6 +51,8 @@ namespace Pyrite9.PulseWatch
         public bool autoTimeZone = true;
         [Tooltip("Wearer's standard UTC offset in minutes (Korea / Japan +540, UK 0, US Eastern -300, India +330). Everyone sees this time.")]
         [Range(-720, 840)] public int utcOffsetMinutes = 540;
+        [Tooltip("Show the clock as 12-hour time with AM / PM (03:24 PM) instead of 24-hour (15:24). Everyone sees the same 12-hour time. Applied at build.")]
+        public bool hour12 = false;
 
         // Features (docs/pulse-watch.md 5-1, D32): a feature switched off is left out of the build entirely — no layers,
         // parameters, contacts or menu items

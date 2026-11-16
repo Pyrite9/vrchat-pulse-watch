@@ -43,7 +43,8 @@ namespace Pyrite9.PulseWatch
         public static void CheckIfDue()
         {
             if (!Enabled) return;
-            long at = System.Convert.ToInt64(EditorPrefs.GetString(KeyAt, "0"));
+            // a broken stored value (not a number, ticks out of range) counts as never checked
+            if (!long.TryParse(EditorPrefs.GetString(KeyAt, "0"), out long at) || at < System.DateTime.MinValue.Ticks || at > System.DateTime.MaxValue.Ticks) at = 0;
             if (System.DateTime.UtcNow - new System.DateTime(at, System.DateTimeKind.Utc) >= Interval) Check();
         }
 

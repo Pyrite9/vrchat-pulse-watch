@@ -1,6 +1,6 @@
 # Pyrite9 Pulse Watch
 
-Version 0.1.2 (2026-11-01)
+Version 0.1.3 (2026-11-16)
 
 A pop-up wristwatch gimmick for VRChat avatars. Drop the prefab into a humanoid avatar and it fits the watch to that avatar's forearm when you build.
 Turn your wrist to your eyes as if checking the time and a hologram opens over the watch — your local time, a radar of the people around you, a scan wave, and waypoint and flashlight buttons you press with a finger. Move the wrist away and it folds up.
@@ -15,7 +15,7 @@ Turn your wrist to your eyes as if checking the time and a hologram opens over t
 - Waypoint: with your other hand pointing, press the button under the clock to turn on a laser, then pull that hand's trigger to mark a spot on the floor, a wall or the ceiling — for you only, or shown to others. A name tag sits above the mark, and the disc shows its direction and distance
 - Flashlight: a second button shines a spotlight from the watch toward where you look — only you see it
 - A compass on the disc's ring, and the time you have spent in this world on the clock
-- The clock shows everyone the time in your time zone and your world position; your frame rate is shown only to you
+- The clock shows everyone the time in your time zone (24-hour, or 12-hour with AM/PM) and your world position; your frame rate is shown only to you
 - The disc's outer ring glows while you speak, and blinks red with a mic mark while you are muted
 - Left or right wrist, back or inside of the wrist (both switchable from the menu), and an option to hide the hologram from others
 - Frosted glass behind the hologram; seen from the side, its light runs down to the wrist — neither copies the screen
@@ -98,6 +98,7 @@ Saved (kept when the avatar is loaded again): sensitivity, right wrist, inside o
 - The scan wave plays each time the watch opens (not again within 5 s) and spreads from your eyes out to 14 m over 1.4 s.
 - A tab can only be pressed while the hand is pointing — brushing it with an open hand or a fist does nothing. If your avatar has a facial expression assigned to that hand gesture, the expression may change while you press (the avatar's own FX gesture expressions).
 - The time zone is that of the PC that builds the avatar (or the UTC offset set in the inspector), and everyone sees the same time on your watch: the wearer's. With **This PC's time zone** on, that zone's daylight saving rule (as of the year you build) is baked in too, and the clock switches automatically by date. A UTC offset typed by hand is fixed, without daylight saving.
+- With **12-hour clock (AM/PM)** on, the clock reads `03:24 PM` instead of `15:24` (leading zero kept, a small AM/PM left of the big time). It says `AM` / `PM` in every menu language and is baked at build, so everyone sees the same on your watch. Off by default (24-hour), so updating from 0.1.2 changes nothing you see.
 
 ## Who sees what — and what it costs
 
@@ -105,7 +106,7 @@ For each feature: what you (the wearer) and others see, and what it adds to the 
 
 | Feature | You | Others | Cost |
 |---|---|---|---|
-| Base (always in) — hologram opening / folding, clock and date | Yes | Opens with yours (not with `Hide from others`); the same wearer's time | 4 synced bits, 3 FX layers, 4 contacts (Local Only), 6 renderers, 6 material slots, 22 polygons, 10 VRC constraints, 1.00 MB texture memory (glyph atlas) |
+| Base (always in) — hologram opening / folding, clock and date | Yes | Opens with yours (not with `Hide from others`); the same wearer's time (12-hour display too) | 4 synced bits, 3 FX layers, 4 contacts (Local Only), 6 renderers, 6 material slots, 22 polygons, 10 VRC constraints, 1.00 MB texture memory (glyph atlas) |
 | Prewarm (always in) — draws each watch shader once when your avatar first comes into view, then switches itself off | Nothing to see (a 0.1 mm triangle inside the chest) | The same on their PC — their first look at your watch does not stall either | 1 renderer and 1 Animator (Cull Completely); 1 material slot and 1 polygon per watch shader in the build (5 with every feature on, 1 with all left out) |
 | Radar | Cells and the count | No (an empty disc) | 120 contact receivers (Local Only), 121 FX parameters |
 | Scan | The wave on opening | No | 4,610 polygons, 3 renderers, 3 material slots, 2 VRC constraints, 1 FX layer, Bounds 30 × 31 × 30 m (the 14 m wave) |
@@ -182,6 +183,7 @@ Names as they appear in the inspector with Menu language set to English. Double-
 | | Hold time (s) | Both conditions have to hold this long before it opens (0–1, default 0.15) |
 | | Debug meter | On: adds **Settings ▸ Debug meter** to the menu; bars above the forearm show how close the face and gaze are, with the open and close marks (only you see them). Turn it off once the angles are set |
 | Time | This PC's time zone | On (default): uses the time zone of the PC that builds the avatar (standard offset and daylight saving rule) — in a daylight saving zone the clock switches by date. This PC's UTC offset is shown below |
+| | 12-hour clock (AM/PM) | On: the clock reads `03:24 PM` instead of `15:24` — a small AM/PM left of the big time, the time a little smaller. Off by default (24-hour). Baked at build; everyone sees the same |
 | | └ UTC offset (min) | Used when the above is off (fixed, no daylight saving). Korea / Japan +540, UK 0, US Eastern −300, India +330 (steps of 15) |
 
 - Placement values are fractions of the forearm length, so they fit any avatar size.
@@ -234,6 +236,7 @@ Console warnings are in English. **Last build** in the inspector shows the same 
 
 ## Changelog
 
+- **0.1.3** (2026-11-16): A 12-hour clock with AM / PM — **12-hour clock (AM/PM)** under **Time** in the inspector. On, the clock reads `03:24 PM` or `12:05 AM` with a small AM / PM left of the big time (the same in every menu language); the time is a little smaller and the seconds and FPS move over to make room. Baked at build, so others see the same; no new synced bits, FX layers or menu items. Off by default (24-hour): importing over 0.1.2 looks the same — turn it on in the inspector and re-upload the avatar. Also small robustness fixes: the watch now closes properly if a saved sensitivity value is out of range, and the build warns about a broken forearm rig or open / close angles set the wrong way round.
 - **0.1.2** (2026-11-01): Worn on the inside of the wrist, the light drip no longer shows a stray block at the edge of the disc. The drip's two baked pictures each caught part of the other (the plate's date tab in the disc's, the disc's rim in the plate's); now each is shot alone. On your own screen with Session time on, the drip of the seconds gauge no longer runs ahead of the gauge into the session time. Import over 0.1.1 and re-upload the avatar.
 - **0.1.1** (2026-11-01): The first opening no longer stalls — smaller watch shaders (first draw on a cold shader cache about 1.4–1.9 s → about 0.35 s in our test) and a prewarm that draws them once when the avatar first comes into view. Glass and light drip without GrabPass (no screen copies): the glass shows the world's reflection probe blurred, the drip reads pictures of the watch baked at build time and draws the time, radar, mute and voice live, and no longer needs the glass. While the watch is closed the wearer's side no longer works out the radar cells.
 - **0.1.0** (2026-10-30): First release.

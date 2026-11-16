@@ -27,8 +27,20 @@
 #define PW_BASELINE 0.20   // baseline above the cell bottom, in cells
 #define PW_MAX_GLYPHS 10
 
+// D74 (docs/pulse-watch.md 4-7): the 12-hour clock "03:24 PM", layout L5 — plate units (height 1), only when _Hour12 is on.
+// PulseWatchProto Plate and PulseWatchDrip PlateLive both read these, so the glow lands on the plate's own light: change them together.
+// The big HH:MM shrinks and moves right to make room for AM/PM at its left; the seconds and the FPS follow the HH:MM's end; the
+// seconds gauge keeps its start (0.07).
+#define PW_H12_BIG 0.46            // big HH:MM size (24 hour: 0.52)
+#define PW_H12_X0 0.26             // big HH:MM left edge (24 hour: 0.07)
+#define PW_H12_AP_X 0.07           // AM / PM left edge
+#define PW_H12_AP_SIZE 0.115       // AM / PM size
+#define PW_CAP_H 0.5734            // flat digit (1 4 5) and capital (A M P) height above the baseline, in cells (measured on the atlas)
+#define PW_H12_AP_BY (0.30 + PW_CAP_H * (PW_H12_BIG - PW_H12_AP_SIZE))   // baseline: the top of AM / PM = the top of the big digits (baseline 0.30)
+
 sampler2D _Glyphs;
 int _UtcOffsetMin;         // wearer's standard offset (KST = 540)
+int _Hour12;               // D74: 12-hour clock with AM / PM (baked at build; 0 = 24 hour, the layout is then exactly as before)
 int _DateLang;             // D73: the menu language (PulseWatchMenuLanguage: 0 English, 1 Japanese, 2 Korean)
 // D72: the build PC's daylight saving rule (PulseWatchPlugin.DstRule) — each transition (month, week 1-5 with 5 = last or 0 = a
 // fixed date, day of week with 0 = Sunday or the fixed day, minutes into the local day: the start's standard, the end's daylight)
@@ -164,16 +176,32 @@ float PwText(float2 p, float2 dpx, float2 dpy, float x0, float by, float size, u
 // coverage of a distance field at the current pixel
 float PwFill(float d, float2 dpx, float2 dpy) { return saturate(0.5 - d / max(length(abs(dpx) + abs(dpy)) * 0.5, 1e-6)); }
 
-// "HH:MM"
+// D74: the hour as shown — 0..23, or with _Hour12 1..12 (0 and 12 are 12)
+uint PwShownHour(uint hour)
+{
+    return _Hour12 != 0 ? (hour % 12u == 0u ? 12u : hour % 12u) : hour;
+}
+
+// "HH:MM" (_Hour12: 12-hour hour, the leading 0 kept — "03:24")
 void PwHourMinute(PwTime t, out uint gs[PW_MAX_GLYPHS], out uint n)
 {
     [unroll] for (uint i = 0; i < PW_MAX_GLYPHS; i++) gs[i] = PW_SPACE;
-    gs[0] = t.live ? t.hour / 10u : PW_DASH;
-    gs[1] = t.live ? t.hour % 10u : PW_DASH;
+    uint h = PwShownHour(t.hour);
+    gs[0] = t.live ? h / 10u : PW_DASH;
+    gs[1] = t.live ? h % 10u : PW_DASH;
     gs[2] = PW_COLON;
     gs[3] = t.live ? t.minute / 10u : PW_DASH;
     gs[4] = t.live ? t.minute % 10u : PW_DASH;
     n = 5u;
+}
+
+// D74: "AM" / "PM" ({A, M} / {P, M} — glyph 39 + 43, 26 + 43); nothing without _Hour12 or without the time
+void PwAmPm(PwTime t, out uint gs[PW_MAX_GLYPHS], out uint n)
+{
+    [unroll] for (uint i = 0; i < PW_MAX_GLYPHS; i++) gs[i] = PW_SPACE;
+    gs[0] = t.hour >= 12u ? PW_F + 1u : PW_A;
+    gs[1] = PW_A + 4u;
+    n = (t.live && _Hour12 != 0) ? 2u : 0u;
 }
 
 // "SS"

@@ -37,6 +37,7 @@ Shader "Pyrite9/PulseWatch/Drip"
         _InkBake ("Plate: the time's colour as baked", Color) = (1, 1, 1, 1)
         _AccBake ("Plate: the seconds' colour as baked", Color) = (0, 1, 0.6, 1)
         _SesOn ("Plate: session time on (the wearer's copy, from the FX) — the gauge is shorter", Float) = 0
+        _Hour12 ("12-hour clock with AM/PM (0 off — D74, the Proto's)", Integer) = 0
         _UtcOffsetMin ("Wearer UTC offset (minutes)", Integer) = 540
         _DstStart ("Daylight saving start", Vector) = (0, 0, 0, 0)
         _DstEnd ("Daylight saving end", Vector) = (0, 0, 0, 0)
@@ -240,13 +241,53 @@ Shader "Pyrite9/PulseWatch/Drip"
             // gauge and the session time there, so the drip leaves the baked row out and PlateLive draws the gauge itself (10-122)
             bool SesRow (float2 q) { return _SesOn > 0.5 && q.x > 0.06 && q.x < _PlateT.z - 0.045 && q.y > 0.10 && q.y < 0.25; }
 
+            // the clock text the bake left out: big HH:MM from tx0 at size `big`, the seconds after it, and with h12 the AM / PM left of
+            // the HH:MM — the Proto's Clock (D74, layout L5, PulseWatchTime.cginc PW_H12_*; digits monospaced, so each slot is found without a
+            // loop). Called once for each layout with its numbers as constants, so the 24-hour call folds to the 0.1.2 code (T2)
+            float3 ClockLive (float3 r, float2 q, uint4 hms, float big, float tx0, bool h12)
+            {
+                const float by = 0.30;
+                float rel = (q.x - tx0) / big;
+                if (q.y > by - 0.25 * big && q.y < by + 0.85 * big && rel > -0.25 && rel < 2.6)
+                {
+                    uint s = rel < 0.52 ? 0u : (rel < 1.04 ? 1u : (rel < 1.32 ? 2u : (rel < 1.84 ? 3u : 4u)));
+                    float start = s == 0u ? 0.0 : (s == 1u ? 0.52 : (s == 2u ? 1.04 : (s == 3u ? 1.32 : 1.84)));
+                    float adv = s == 2u ? 0.28 : 0.52;
+                    uint h = PwShownHour(hms.x);   // the hour comes 24 hour from the vertex
+                    uint g = s == 0u ? h / 10u : (s == 1u ? h % 10u : (s == 2u ? (uint)PW_COLON : (s == 3u ? hms.y / 10u : hms.y % 10u)));
+                    r += _InkBake.rgb * GlyphCov(q, tx0 + (start + 0.5 * adv) * big, by, big, g, _PlatePx);
+                }
+                if (h12)   // AM / PM left of it, its top level with the big digits'
+                {
+                    const float aps = PW_H12_AP_SIZE;
+                    float arel = (q.x - PW_H12_AP_X) / aps;
+                    if (q.y > PW_H12_AP_BY - 0.25 * aps && q.y < PW_H12_AP_BY + 0.85 * aps && arel > -0.25 && arel < 1.6)
+                    {
+                        float a0 = hms.x >= 12u ? PwAdvance(PW_F + 1u) : PwAdvance(PW_A);   // P / A, then M
+                        uint s = arel < a0 ? 0u : 1u;
+                        uint g = s == 1u ? PW_A + 4u : (hms.x >= 12u ? PW_F + 1u : PW_A);
+                        float cx = PW_H12_AP_X + (s == 0u ? 0.5 * a0 : a0 + 0.5 * PwAdvance(PW_A + 4u)) * aps;
+                        r += _InkBake.rgb * GlyphCov(q, cx, PW_H12_AP_BY, aps, g, _PlatePx);
+                    }
+                }
+                const float ss = 0.24;
+                float sx0 = tx0 + 2.36 * big + 0.04;
+                rel = (q.x - sx0) / ss;
+                if (q.y > by - 0.25 * ss && q.y < by + 0.85 * ss && rel > -0.25 && rel < 1.3)
+                {
+                    uint s = rel < 0.52 ? 0u : 1u;
+                    r += _AccBake.rgb * GlyphCov(q, sx0 + ((float)s * 0.52 + 0.26) * ss, by, ss, s == 0u ? hms.z / 10u : hms.z % 10u, _PlatePx);
+                }
+                return r;
+            }
+
             // the plate's changing text the bake left out (ProtoBake _BakeHide): big HH:MM, the seconds, the gauge fill — at b (board units
             // on the plate plane), laid out as PulseWatchProto Plate does (digits monospaced, so each slot is found without a loop)
             float3 PlateLive (float2 b, uint4 hms)
             {
                 float2 q = PlateQ(b);
                 float3 r = 0.0;
-                const float x0 = 0.07;
+                const float x0 = 0.07;   // the gauge's start (the Proto's gx0) — the clock's own start is tx0
                 // the gauge ends where the Proto's does: shorter with the session time (the wearer's copy, _SesOn from the FX)
                 float gx1 = _SesOn > 0.5 ? _PlateT.z - 0.62 : _PlateT.w;
                 float u = (q.x - x0) / (gx1 - x0);
@@ -258,24 +299,9 @@ Shader "Pyrite9/PulseWatch/Drip"
                 if (_SesOn > 0.5 && q.y > 0.10 && q.y < 0.195)   // the quarter tick
                     r += _InkBake.rgb * saturate((0.003 - abs(q.x - x0 - (gx1 - x0) * 0.25)) / _PlatePx + 0.5) * 0.5;
                 if (hms.w == 0u) return r;
-                const float big = 0.52, by = 0.30;
-                float rel = (q.x - x0) / big;
-                if (q.y > by - 0.25 * big && q.y < by + 0.85 * big && rel > -0.25 && rel < 2.6)
-                {
-                    uint s = rel < 0.52 ? 0u : (rel < 1.04 ? 1u : (rel < 1.32 ? 2u : (rel < 1.84 ? 3u : 4u)));
-                    float start = s == 0u ? 0.0 : (s == 1u ? 0.52 : (s == 2u ? 1.04 : (s == 3u ? 1.32 : 1.84)));
-                    float adv = s == 2u ? 0.28 : 0.52;
-                    uint g = s == 0u ? hms.x / 10u : (s == 1u ? hms.x % 10u : (s == 2u ? (uint)PW_COLON : (s == 3u ? hms.y / 10u : hms.y % 10u)));
-                    r += _InkBake.rgb * GlyphCov(q, x0 + (start + 0.5 * adv) * big, by, big, g, _PlatePx);
-                }
-                const float ss = 0.24;
-                float sx0 = x0 + 2.36 * big + 0.04;
-                rel = (q.x - sx0) / ss;
-                if (q.y > by - 0.25 * ss && q.y < by + 0.85 * ss && rel > -0.25 && rel < 1.3)
-                {
-                    uint s = rel < 0.52 ? 0u : 1u;
-                    r += _AccBake.rgb * GlyphCov(q, sx0 + ((float)s * 0.52 + 0.26) * ss, by, ss, s == 0u ? hms.z / 10u : hms.z % 10u, _PlatePx);
-                }
+                // the clock as the Proto's Plate lays it out (D74: with _Hour12 the L5 layout) — one call for each layout (see ClockLive)
+                if (_Hour12 != 0) r = ClockLive(r, q, hms, PW_H12_BIG, PW_H12_X0, true);
+                else r = ClockLive(r, q, hms, 0.52, 0.07, false);
                 return r;
             }
 

@@ -203,9 +203,9 @@ namespace Pyrite9.PulseWatch
             new[] { "A compass on the disc's ring, and how long you have been in the world on the clock",
                     "円盤の輪に方位、時計にワールドの滞在時間",
                     "원판 링에 나침반, 시계에 월드 체류 시간" },
-            new[] { "The clock shows your own time zone and your world position to everyone; your frame rate is for your eyes only",
-                    "時計はみんなに自分のタイムゾーンの時刻とワールド座標を表示、フレームレートは自分にだけ",
-                    "시계는 모두에게 내 시간대 시각과 월드 좌표를, 프레임 레이트는 나에게만" },
+            new[] { "The clock shows your own time zone (24-hour, or 12-hour with AM/PM) and your world position to everyone; your frame rate is for your eyes only",
+                    "時計はみんなに自分のタイムゾーンの時刻（24 時間、または AM/PM の 12 時間表示）とワールド座標を表示、フレームレートは自分にだけ",
+                    "시계는 모두에게 내 시간대 시각(24시간 또는 AM/PM 12시간제)과 월드 좌표를, 프레임 레이트는 나에게만" },
             new[] { "Left or right wrist, back or inside of the wrist (switch both from the menu), and hide the hologram from others",
                     "左右の手首、手首の外側・内側（どちらもメニューで切り替え）、ホログラムを他の人に隠せる",
                     "왼손·오른손, 손목 바깥·안쪽(둘 다 메뉴로 전환), 홀로그램을 남에게 숨기기" },
@@ -622,6 +622,17 @@ namespace Pyrite9.PulseWatch
                     "이 시간대엔 서머타임이 있습니다 — 시계가 올해 규칙대로 날짜에 맞춰 바뀝니다."), "pw-note"));
             sec.Add(auto);
             sec.Add(utc);
+            // D74: an independent row under the time zone rows (not a child) — baked into the clock at build, no parameter
+            var clockGrid = new VisualElement(); clockGrid.AddToClassList("pw-rows");
+            sec.Add(clockGrid);
+            var clockGroup = new VisualElement(); clockGroup.AddToClassList("pw-group");
+            clockGrid.Add(clockGroup);
+            clockGroup.Add(Row(T(lang, "Clock", "時計", "시계"),
+                "Hour 12 — " + T(lang, "Show the clock as 12-hour time with AM / PM (03:24 PM) instead of 24-hour (15:24). Everyone sees the same 12-hour time on your watch.",
+                    "時計を 24 時間（15:24）ではなく AM/PM の 12 時間表示（03:24 PM）にします。みんながあなたの時計で同じ 12 時間表示を見ます。",
+                    "시계를 24시간(15:24) 대신 AM/PM 12시간제(03:24 PM)로 표시합니다. 모두가 내 시계에서 같은 12시간제 표기를 봅니다."),
+                Check("hour12", T(lang, "12-hour clock (AM/PM)", "12時間表示 (AM/PM)", "12시간제 (AM/PM)"))));
+            sec.Add(Label(T(lang, "Others see the same AM / PM on your watch.", "他の人にも同じ AM/PM 表記で見えます。", "남에게도 같은 AM/PM 표기로 보입니다."), "pw-note"));
             live.Add(() =>
             {
                 bool a = Pw.autoTimeZone;
@@ -834,7 +845,8 @@ namespace Pyrite9.PulseWatch
                         "×" + rec.scale.ToString("0.00") + (far ? T(lang, " — far from the reference forearm", " — 基準の前腕から遠い", " — 기준 팔뚝과 멂") : ""), far ? "pw-fact__value--gold" : null));
                     grid.Add(Fact(T(lang, "Clock", "時計", "시계"),
                         Utc(rec.utcOffsetMinutes) + (rec.autoTimeZone ? T(lang, " (this PC)", "（この PC）", " (이 PC)") : "")
-                        + (rec.daylightSaving ? T(lang, " + daylight saving", " + 夏時間", " + 서머타임") : ""), null));
+                        + (rec.daylightSaving ? T(lang, " + daylight saving", " + 夏時間", " + 서머타임") : "")
+                        + (rec.hour12 ? " · AM/PM" : ""), null));
                     grid.Add(Fact(T(lang, "Features", "機能", "기능"),
                         $"{rec.featuresOn} / 13" + (rec.debugMeter ? T(lang, " + debug meter", " + デバッグメーター", " + 디버그 막대") : ""), rec.debugMeter ? "pw-fact__value--gold" : null));
                     grid.Add(Fact(T(lang, "Synced", "同期", "동기화"), rec.syncedBits + " bit", null));

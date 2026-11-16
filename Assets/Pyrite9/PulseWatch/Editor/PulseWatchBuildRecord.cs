@@ -27,6 +27,7 @@ namespace Pyrite9.PulseWatch
             public int utcOffsetMinutes;
             public bool autoTimeZone;
             public bool daylightSaving;  // a daylight saving rule was baked (D72 — the watch switches by date)
+            public bool hour12;          // the 12-hour clock with AM / PM was baked (D74)
             public int syncedBits;
             public int fxLayers;
             public int contacts;         // receivers + senders

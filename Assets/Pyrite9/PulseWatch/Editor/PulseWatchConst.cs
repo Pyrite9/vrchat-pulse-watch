@@ -6,7 +6,7 @@ namespace Pyrite9.PulseWatch
 {
     static class PulseWatchConst
     {
-        public const string Version = "0.1.2";
+        public const string Version = "0.1.3";
         public const string LogPath = "Logs/Pyrite9_PulseWatch_build.txt";
         public const long LogLimit = 512 * 1024;   // bytes; past this the build log starts over, the previous one kept as .old
         public const string ShaderName = "Pyrite9/PulseWatch/Proto";
@@ -36,7 +36,7 @@ namespace Pyrite9.PulseWatch
         public const string LightTabQuad = LightTab + "/Quad";
         public const string LightPressL = LightTab + "/PressL";
         public const string LightPressR = LightTab + "/PressR";
-        public const string Flashlight = Watch + "/Flashlight";   // D46: the Spot Light, along the forearm toward the fingers (owner only)
+        public const string Flashlight = Watch + "/Flashlight";   // D46: the Spot Light, shining along the gaze (D49, owner only)
         public const string PressL = Button + "/PressL";          // takes the left index (watch on the right wrist)
         public const string PressR = Button + "/PressR";          // takes the right index (watch on the left wrist)
         public const string Laser = "Laser";                      // + L / R: on each hand at the index tip, +Z along the finger (D29 Q14); VRCRaycast -> LaserHit; Beam under it

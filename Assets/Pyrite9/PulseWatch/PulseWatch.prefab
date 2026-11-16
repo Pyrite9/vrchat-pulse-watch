@@ -57,6 +57,7 @@ MonoBehaviour:
   dwell: 0.15
   autoTimeZone: 1
   utcOffsetMinutes: 540
+  hour12: 0
   radar: 1
   scan: 1
   scanDepth: 1

@@ -184,6 +184,8 @@ namespace Pyrite9.PulseWatch
             var head = anim.GetBoneTransform(HumanBodyBones.Head);
             if (head == null) { log.AppendLine("WARN head bone missing — watch not built"); return; }
             Sanitize(pw, log);
+            if (pw.faceClose <= pw.faceOpen) log.AppendLine("WARN face close angle is not above the open angle — the face flickers open and shut between them");
+            if (pw.gazeClose <= pw.gazeOpen) log.AppendLine("WARN gaze close angle is not above the open angle — the gaze flickers open and shut between them");
             var hips = anim.GetBoneTransform(HumanBodyBones.Hips);
             if (hips != null && root.IsChildOf(hips))
                 log.AppendLine($"WARN the watch is under the armature ({root.parent.name}) — put it right under the avatar root (the floor mark and scan floor take its height)");
@@ -224,6 +226,7 @@ namespace Pyrite9.PulseWatch
                 m.SetVector("_DstEnd", dst.end);
                 m.SetInteger("_DstMin", dst.shift);
                 m.SetInteger("_DateLang", (int)pw.menuLanguage);   // D73
+                m.SetInteger("_Hour12", pw.hour12 ? 1 : 0);        // D74
                 return m;
             }
             // Holo: quads in its XZ plane, X = text right, Z = text up / the disc's 12 o'clock. Rest pose (before the constraint
@@ -427,7 +430,7 @@ namespace Pyrite9.PulseWatch
             log.AppendLine($"wrist: {(left ? "left" : "right")} by default, menu switches (D18); sizes x{s:0.00}, L {L:0.000} m, receiver r {r:0.000} m");
             log.AppendLine($"layout D16: disc {DiscSize * s * 1000f:0} mm at +{DiscLift * s * 1000f:0} mm, clock plate {PlateWidth * s * 1000f:0} x {PlateWidth / PlateAspect * s * 1000f:0} mm on a spot {PlateOut * s * 1000f:0} mm toward the hand and {PlateDown * s * 1000f:0} mm below the centre (D18), lifted {PlateLift * s * 1000f:0} mm toward the eyes (D19), turning with the head, radar on the disc {(pw.radar ? "on" : "off")}");
             log.AppendLine($"thresholds (normal / loose / strict, deg -> proximity): face open {Fmt(faceO)} close {Fmt(faceC)}, gaze open {Fmt(gazeO)} close {Fmt(gazeC)}, dwell {pw.dwell:0.00} s");
-            log.AppendLine($"clock: UTC{(offset < 0 ? "-" : "+")}{System.Math.Abs(offset) / 60}:{System.Math.Abs(offset) % 60:00} ({(pw.autoTimeZone ? "this PC, " + System.TimeZoneInfo.Local.Id : "set by hand")}){(dst.shift != 0 ? $", daylight saving +{dst.shift} min from {dst.start} to {dst.end} (D72)" : "")}");
+            log.AppendLine($"clock: UTC{(offset < 0 ? "-" : "+")}{System.Math.Abs(offset) / 60}:{System.Math.Abs(offset) % 60:00} ({(pw.autoTimeZone ? "this PC, " + System.TimeZoneInfo.Local.Id : "set by hand")}){(dst.shift != 0 ? $", daylight saving +{dst.shift} min from {dst.start} to {dst.end} (D72)" : "")}{(pw.hour12 ? ", 12-hour AM/PM (D74)" : "")}");
             log.AppendLine($"built: {made.Count} assets, {cells} radar receivers (60 cells); features: radar {On(pw.radar)}, scan {On(scan)} (depth light {On(depth)}), waypoint {On(wp)}, voice ring {On(pw.voiceRing)}, fps {On(pw.fps)}, coordinates {On(pw.coordinates)}, compass {On(compass)}, session time {On(pw.sessionTime)}, blur {On(frost)}, light drip {On(drip)}, flashlight {On(flash)}, debug meter {On(pw.debugMeter)}");
 
             rec.built = true;
@@ -436,6 +439,7 @@ namespace Pyrite9.PulseWatch
             rec.utcOffsetMinutes = offset;
             rec.autoTimeZone = pw.autoTimeZone;
             rec.daylightSaving = dst.shift != 0;
+            rec.hour12 = pw.hour12;
             rec.syncedBits = ps.parameters.Where(p => !p.localOnly && p.syncType != ParameterSyncType.NotSynced).Sum(p => p.syncType == ParameterSyncType.Bool ? 1 : 8);
             rec.fxLayers = fx.layers.Length;
             rec.contacts = root.GetComponentsInChildren<VRCContactReceiver>(true).Length + root.GetComponentsInChildren<VRCContactSender>(true).Length;
@@ -457,6 +461,7 @@ namespace Pyrite9.PulseWatch
             // forearm frame: axis elbow -> wrist, back of the hand from the finger direction x the knuckle line
             var forearm = hand.position - lowerArm.position;
             float forearmLen = forearm.magnitude;
+            if (forearmLen < 1e-4f) { log.AppendLine($"WARN {tag}: lower arm and hand bones sit at the same spot — watch not built"); return (null, null, 1f); }
             var axis = forearm / forearmLen;
             var fingers = Bone(anim, left ? HumanBodyBones.LeftMiddleProximal : HumanBodyBones.RightMiddleProximal);
             var index = Bone(anim, left ? HumanBodyBones.LeftIndexProximal : HumanBodyBones.RightIndexProximal);
@@ -869,6 +874,7 @@ namespace Pyrite9.PulseWatch
             pm.SetColor("_InkBake", plateMat.GetColor("_LineColor"));   // the bake keeps the material colours as they are
             pm.SetColor("_AccBake", plateMat.GetColor("_Color"));
             pm.SetInteger("_UtcOffsetMin", plateMat.GetInteger("_UtcOffsetMin"));
+            pm.SetInteger("_Hour12", plateMat.GetInteger("_Hour12"));   // D74: the drip lays the same clock as the plate
             pm.SetInteger("_DstMin", plateMat.GetInteger("_DstMin"));
             pm.SetVector("_DstStart", plateMat.GetVector("_DstStart"));
             pm.SetVector("_DstEnd", plateMat.GetVector("_DstEnd"));

@@ -127,33 +127,44 @@ namespace Pyrite9.PulseWatch
             w = (w + 3) / 4 * 4; hgt = (hgt + 3) / 4 * 4;   // block compression wants multiples of 4
             var rect = new Vector4(minX, minZ, sx, sz);
             var center = o + (ax * (minX + sx * 0.5f) + az * (minZ + sz * 0.5f)) * unit;
-            var go = new GameObject("PulseWatch bake camera") { hideFlags = HideFlags.HideAndDontSave };
-            var cam = go.AddComponent<Camera>();
-            cam.enabled = false;
-            cam.transform.SetPositionAndRotation(center + up * 0.2f * unit, Quaternion.LookRotation(-up, az));
-            cam.orthographic = true; cam.orthographicSize = sz * 0.5f * unit; cam.aspect = sx / sz;
-            cam.nearClipPlane = 0.01f * unit; cam.farClipPlane = 0.4f * unit;
-            cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0, 0, 0, 0);
-            cam.cullingMask = 1 << Layer; cam.allowMSAA = true; cam.allowHDR = true;
-            var rt = new RenderTexture(w, hgt, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear) { antiAliasing = 8 };
-            cam.targetTexture = rt;
-            // only this target's renderers on the bake layer: with both on it (0.1.1) the disc's picture caught the plate's date tab
-            // and the plate's the disc's rim where they sat at build time, and the plate moves with the eyes — a stray block of drip
-            // at the disc's edge, worst on the inside of the wrist (10-121). Bake's finally puts every layer back
-            var lay = rs.Select(r => r.gameObject.layer).ToArray();
-            foreach (var r in rs) r.gameObject.layer = Layer;
-            cam.Render();
-            for (int i = 0; i < rs.Length; i++) rs[i].gameObject.layer = lay[i];
-            var prev = RenderTexture.active; RenderTexture.active = rt;
-            var read = new Texture2D(w, hgt, TextureFormat.RGBAHalf, false, true);
-            read.ReadPixels(new Rect(0, 0, w, hgt), 0, 0); read.Apply();
-            RenderTexture.active = prev;
-            var px = read.GetPixels().Select(c => new Color(Mathf.Clamp01(c.r), Mathf.Clamp01(c.g), Mathf.Clamp01(c.b), 1f).gamma).ToArray();
-            var tex = new Texture2D(w, hgt, TextureFormat.RGBA32, false, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
-            tex.SetPixels(px); tex.Apply();
-            EditorUtility.CompressTexture(tex, TextureFormat.BC7, TextureCompressionQuality.Best);
-            Object.DestroyImmediate(read); cam.targetTexture = null; rt.Release(); Object.DestroyImmediate(rt); Object.DestroyImmediate(go);
-            return new Target { tex = tex, rect = rect, h = h };
+            GameObject go = null; RenderTexture rt = null; Texture2D read = null; RenderTexture prev = null; bool swapped = false; int[] lay = null;
+            try
+            {
+                go = new GameObject("PulseWatch bake camera") { hideFlags = HideFlags.HideAndDontSave };
+                var cam = go.AddComponent<Camera>();
+                cam.enabled = false;
+                cam.transform.SetPositionAndRotation(center + up * 0.2f * unit, Quaternion.LookRotation(-up, az));
+                cam.orthographic = true; cam.orthographicSize = sz * 0.5f * unit; cam.aspect = sx / sz;
+                cam.nearClipPlane = 0.01f * unit; cam.farClipPlane = 0.4f * unit;
+                cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = new Color(0, 0, 0, 0);
+                cam.cullingMask = 1 << Layer; cam.allowMSAA = true; cam.allowHDR = true;
+                rt = new RenderTexture(w, hgt, 24, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear) { antiAliasing = 8 };
+                cam.targetTexture = rt;
+                // only this target's renderers on the bake layer: with both on it (0.1.1) the disc's picture caught the plate's date tab
+                // and the plate's the disc's rim where they sat at build time, and the plate moves with the eyes — a stray block of drip
+                // at the disc's edge, worst on the inside of the wrist (10-121). Bake's finally puts every layer back
+                lay = rs.Select(r => r.gameObject.layer).ToArray();
+                foreach (var r in rs) r.gameObject.layer = Layer;
+                cam.Render();
+                for (int i = 0; i < rs.Length; i++) rs[i].gameObject.layer = lay[i];
+                prev = RenderTexture.active; swapped = true; RenderTexture.active = rt;
+                read = new Texture2D(w, hgt, TextureFormat.RGBAHalf, false, true);
+                read.ReadPixels(new Rect(0, 0, w, hgt), 0, 0); read.Apply();
+                RenderTexture.active = prev; swapped = false;
+                var px = read.GetPixels().Select(c => new Color(Mathf.Clamp01(c.r), Mathf.Clamp01(c.g), Mathf.Clamp01(c.b), 1f).gamma).ToArray();
+                var tex = new Texture2D(w, hgt, TextureFormat.RGBA32, false, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+                tex.SetPixels(px); tex.Apply();
+                EditorUtility.CompressTexture(tex, TextureFormat.BC7, TextureCompressionQuality.Best);
+                return new Target { tex = tex, rect = rect, h = h };
+            }
+            finally
+            {
+                if (lay != null) for (int i = 0; i < rs.Length; i++) if (rs[i] != null) rs[i].gameObject.layer = lay[i];
+                if (swapped) RenderTexture.active = prev;
+                if (read != null) Object.DestroyImmediate(read);
+                if (go != null) { var camX = go.GetComponent<Camera>(); if (camX != null) camX.targetTexture = null; Object.DestroyImmediate(go); }
+                if (rt != null) { rt.Release(); Object.DestroyImmediate(rt); }
+            }
         }
     }
 }
