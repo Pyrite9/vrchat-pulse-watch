@@ -22,6 +22,14 @@ namespace Pyrite9.PulseWatch
         [Tooltip("Wrist the watch is worn on at first. The menu (Pulse Watch > Settings > Wear on right wrist) switches it in game; Settings > Wear on inside of wrist moves it to the palm side.")]
         public PulseWatchSide side = PulseWatchSide.Left;
 
+        // D75: where the built 'Pulse Watch' submenu goes. Both empty = the Expression Menu root (as before 0.1.4)
+        [Tooltip("The menu the 'Pulse Watch' submenu goes in — empty: the Expression Menu root. It must be a menu in this avatar's Expression Menu (or one a Modular Avatar installer adds), or the submenu is left out.")]
+        public VRC.SDK3.Avatars.ScriptableObjects.VRCExpressionsMenu installTo;
+        // an MA Menu Item (the inspector only takes one). Typed Component so this runtime assembly needs no Modular Avatar reference —
+        // a new reference here made the first compile after importing over 0.1.3 fail once (CS0246) before Unity re-read the asmdef
+        [Tooltip("Or an MA Menu Item submenu of this avatar (Submenu Source: Children) — the 'Pulse Watch' submenu goes in it. Used before Install to when both are set.")]
+        public Component installToItem;
+
         // D68: baked at build (no parameters). Defaults = PulseWatchConst.Accent / WaypointColor
         [Header("Colors")]
         [Tooltip("The hologram's accent (hands, gauges, highlights) and the scan wave. Applied at build.")]

@@ -1,6 +1,6 @@
 # Pulse Watch 개발 노트
 
-VRChat 아바타용 무료 기믹 **Pyrite9 Pulse Watch** v0.1.0을 만들며(0.1.1~0.1.3 변경은 10절 끝) 푼 기술 과제·버린 안·겪은 함정 정리. 사용법은 [README](../Assets/Pyrite9/PulseWatch/README_ko.md) 참고.
+VRChat 아바타용 무료 기믹 **Pyrite9 Pulse Watch** v0.1.0을 만들며(0.1.1~0.1.4 변경은 10절 끝) 푼 기술 과제·버린 안·겪은 함정 정리. 사용법은 [README](../Assets/Pyrite9/PulseWatch/README_ko.md) 참고.
 
 ## 한눈에
 
@@ -215,6 +215,12 @@ VRChat 아바타용 무료 기믹 **Pyrite9 Pulse Watch** v0.1.0을 만들며(0.
 - **함정**: Unity 2022.3에서 `Material.GetInt`는 `Integer` 속성을 못 읽고 0을 돌려줌 → `GetInteger`/`SetInteger`만
 - 코드 검수에서 나온 것: 스캔이 끝난 뒤 레이더 그리드 끝에 남는 노란 고리는 설계가 아니라 **Write Defaults off라서 남은 마지막 프레임 값**이었음(스캔 반경을 쓰는 상태가 파동 하나뿐, exit time 전이라 14 m 직전 값에서 멈춤). WD on 아바타에선 기본값으로 돌아가 고리가 없었을 것 → 모습은 마음에 들어 그대로 두되, 모든 상태가 그 값을 직접 쓰게 해서 아바타의 WD 설정과 무관하게 같게 함. 교훈: WD off에서 "안 쓰면 남는다"에 기대는 값은 눈에 보이는 동작이 되기 전에 명시
 - 그 밖에: 저장된 감도 값이 범위 밖이면 열린 뒤 안 닫히던 전이 구멍, 팔뚝 길이 0·열림/닫힘 각도 역전 빌드 경고, 굽기 도중 예외에도 임시 카메라 정리
+
+**0.1.4 — 메뉴 설치 위치, 그리고 덮어 임포트 때의 한 번짜리 컴파일 에러**(2026-11-18)
+- 계기: 사용자 문의 — 시계 메뉴를 자기 `Gadgets` 하위 메뉴로 옮기고 싶은데 메뉴 파일이 없음(메뉴는 빌드 때 생성되므로 원래 없음)
+- 인스펙터 Menu 구역: Install to에 Expressions Menu 에셋 또는 MA Menu Item(SubMenu·Children)을 고름. 에셋이면 생성한 MA Menu Installer의 `installTargetMenu`로, Menu Item이면 그 아래에 MA Menu Install Target(내부 타입이라 리플렉션)을 만들어 연결. 아바타 메뉴 트리를 MA가 합치는 순서대로 그려 클릭으로 고르게 하고, 아바타 메뉴에 없는 곳이면 3개 언어 경고. 빌드 기록엔 MA를 거친 뒤 실제 메뉴에서 찾은 경로
+- MA 동작에 맞춘 것: 설치 대상이 가리키는 Installer는 원래 자리에서 빠짐, Children은 직계 자식만, Installer 자신의 Menu Item/Group이 `menuToAppend`보다 먼저, 한 메뉴를 두 곳에서 쓰면 라디얼에 두 번 뜸(두 번 셈)
+- **함정**: 런타임 asmdef에 MA 참조를 새로 넣었더니 0.1.3 위에 덮어 임포트할 때 첫 컴파일이 `CS0246 'nadena'`로 한 번 실패(asmdef를 다시 읽기 전 순서 문제, 바로 회복). 필드를 `Component`로 두고 에디터 쪽에서 형변환해 런타임은 0.1.3과 같은 참조로 — 새 참조는 에디터 어셈블리에만
 
 ### 11. 예산 — 동기화 8비트, FX 레이어 15
 

@@ -1,6 +1,6 @@
 # Pyrite9 Pulse Watch
 
-Version 0.1.3 (2026-11-16)
+Version 0.1.4 (2026-11-18)
 
 A pop-up wristwatch gimmick for VRChat avatars. Drop the prefab into a humanoid avatar and it fits the watch to that avatar's forearm when you build.
 Turn your wrist to your eyes as if checking the time and a hologram opens over the watch — your local time, a radar of the people around you, a scan wave, and waypoint and flashlight buttons you press with a finger. Move the wrist away and it folds up.
@@ -63,7 +63,7 @@ At build time the watch measures the avatar's forearm, hand and head and fits th
 
 ## Expression Menu
 
-One submenu, **Pulse Watch**, is added to the main menu (the item names follow **Menu language**; the name `Pulse Watch` stays):
+One submenu, **Pulse Watch**, is added to the main menu — or inside another menu, set under **Menu** in the inspector (the item names follow **Menu language**; the name `Pulse Watch` stays):
 
 | Item | Type | Parameter | What it does | Others |
 |---|---|---|---|---|
@@ -163,6 +163,9 @@ Names as they appear in the inspector with Menu language set to English. Double-
 | | Wrist | Left (default) / Right — the wrist the watch is on at first. Menu **Settings ▸ Wear on right wrist** switches it while playing (saved) |
 | | Accent colour | The hologram's accent (hands, gauges, highlights) and the scan wave. Default yellow #FFE00D; **Default** resets it |
 | | Waypoint colour | The waypoint's laser, mark, name tag and reticle, its arrow on the disc and the waypoint button. Default sky blue #4CD9FF. The hologram is light on dark glass, so **dark colours show dim** (the inspector warns) |
+| Menu | Install to | The menu the `Pulse Watch` submenu goes in (an Expression Menu asset). Empty: the main menu (root). Only a menu in this avatar's menu — otherwise the inspector warns |
+| | or MA Menu Item | For a submenu made of objects with no menu asset (MA Menu Item, Submenu Source: Children). Used first when both are set |
+| | Avatar menu | This avatar's menu as a tree — click a menu to install there. Where it really went shows under **Last build** > **Menu** |
 | Include | Radar | People within 14 m — 120 Local Only contacts |
 | | Scan | Wave on opening — 1 FX layer |
 | | └ Depth light | A directional light that lets the wave run over floors and walls in worlds without a depth texture (only during the wave, only on your side). It lights nothing and casts no visible shadow. 1 real Light — left out along with the scan |
@@ -236,6 +239,7 @@ Console warnings are in English. **Last build** in the inspector shows the same 
 
 ## Changelog
 
+- **0.1.4** (2026-11-18): A **Menu** section in the inspector — put the `Pulse Watch` submenu inside a menu of your choice (**Install to**: an Expression Menu asset, **or MA Menu Item**: a submenu made of objects; or click one in the avatar menu tree). Empty: the main menu, as before. **Last build** shows where it went.
 - **0.1.3** (2026-11-16): A 12-hour clock with AM / PM — **12-hour clock (AM/PM)** under **Time** in the inspector. On, the clock reads `03:24 PM` or `12:05 AM` with a small AM / PM left of the big time (the same in every menu language); the time is a little smaller and the seconds and FPS move over to make room. Baked at build, so others see the same; no new synced bits, FX layers or menu items. Off by default (24-hour): importing over 0.1.2 looks the same — turn it on in the inspector and re-upload the avatar. Also small robustness fixes: the watch now closes properly if a saved sensitivity value is out of range, and the build warns about a broken forearm rig or open / close angles set the wrong way round.
 - **0.1.2** (2026-11-01): Worn on the inside of the wrist, the light drip no longer shows a stray block at the edge of the disc. The drip's two baked pictures each caught part of the other (the plate's date tab in the disc's, the disc's rim in the plate's); now each is shot alone. On your own screen with Session time on, the drip of the seconds gauge no longer runs ahead of the gauge into the session time. Import over 0.1.1 and re-upload the avatar.
 - **0.1.1** (2026-11-01): The first opening no longer stalls — smaller watch shaders (first draw on a cold shader cache about 1.4–1.9 s → about 0.35 s in our test) and a prewarm that draws them once when the avatar first comes into view. Glass and light drip without GrabPass (no screen copies): the glass shows the world's reflection probe blurred, the drip reads pictures of the watch baked at build time and draws the time, radar, mute and voice live, and no longer needs the glass. While the watch is closed the wearer's side no longer works out the radar cells.

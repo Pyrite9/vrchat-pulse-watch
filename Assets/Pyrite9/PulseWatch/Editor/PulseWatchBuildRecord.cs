@@ -33,6 +33,9 @@ namespace Pyrite9.PulseWatch
             public int contacts;         // receivers + senders
             public int featuresOn;       // of the 13 feature switches (the name tag and the scan's depth light count, the debug meter does not)
             public bool debugMeter;
+            public string installTo = "";   // D75: where the submenu was put ("" = the root), as in the build log
+            public string menuPath = "";    // where it is in the built Expression Menu (after MA), "" = not found
+            public bool menuChecked;        // the check after MA ran (false in records from 0.1.3 and before — no 'Menu' line then)
             public List<string> warnings = new List<string>();   // English, as in the build log
         }
 

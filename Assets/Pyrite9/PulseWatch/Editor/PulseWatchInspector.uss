@@ -240,3 +240,16 @@
 .pw-row--child { padding-left: 22px; }
 .pw-row--child .pw-label { width: 118px; }
 .pw-row__link { position: absolute; left: 6px; top: -6px; width: 11px; height: 22px; }
+
+/* 메뉴 설치 위치 트리(D75, Sleeve Roll sr-mtree를 옮김) */
+.pw-mtree { flex-grow: 1; border-width: 1px; border-color: #2E323C; border-radius: 3px; background-color: #1C1F26; padding: 3px 0; }
+.pw-mtree__row { flex-direction: row; align-items: center; height: 22px; padding-right: 8px; border-left-width: 2px; border-color: rgba(0,0,0,0); }
+.pw-mtree__row:hover { background-color: #232730; }
+.pw-mtree__row--on, .pw-mtree__row--on:hover { background-color: #2A2618; border-color: #E2CE74; }
+.pw-mtree__chev { width: 14px; color: #7D8391; padding: 0; margin: 0; -unity-text-align: middle-center; }
+.pw-mtree__chev:hover { color: #E2CE74; }
+.pw-mtree__name { color: #C9CDD5; padding: 0; margin: 0 6px 0 2px; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
+.pw-mtree__row--on .pw-mtree__name { color: #E2CE74; -unity-font-style: bold; }
+.pw-mtree__asset { color: #5A606C; padding: 0; margin: 0; flex-shrink: 1; overflow: hidden; text-overflow: ellipsis; }
+.pw-mtree__count { color: #7D8391; padding: 0; margin: 0 0 0 auto; font-size: 11px; flex-shrink: 0; }
+.pw-mtree__count--full { color: #E2CE74; }

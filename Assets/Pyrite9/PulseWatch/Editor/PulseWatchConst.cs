@@ -6,7 +6,7 @@ namespace Pyrite9.PulseWatch
 {
     static class PulseWatchConst
     {
-        public const string Version = "0.1.3";
+        public const string Version = "0.1.4";
         public const string LogPath = "Logs/Pyrite9_PulseWatch_build.txt";
         public const long LogLimit = 512 * 1024;   // bytes; past this the build log starts over, the previous one kept as .old
         public const string ShaderName = "Pyrite9/PulseWatch/Proto";

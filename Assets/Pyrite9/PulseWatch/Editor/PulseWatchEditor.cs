@@ -1,7 +1,8 @@
 // Pyrite9 Pulse Watch — PulseWatch inspector (UI Toolkit, design 'Assay' — _common/inspector-assay.md, copied from Drink Can's DrinkCanEditor)
-//   about + features (fold) · 01 basics (menu language, wrist) · 02 include (feature switches, D32 — off = left out of the build)
-//   · 03 placement (gauges) · 04 detection (open / close angles, dwell, debug meter) · 05 time (this PC's zone or a fixed offset)
-//   · 06 last build (PwBuildRecord) · 07 changelog (fold — this version's line, read from the README '변경 기록 / Changelog / 更新履歴'
+//   about + features (fold) · 01 basics (menu language, wrist) · 02 menu (where the submenu goes, D75 — PulseWatchEditor.Menu.cs)
+//   · 03 include (feature switches, D32 — off = left out of the build)
+//   · 04 placement (gauges) · 05 detection (open / close angles, dwell, debug meter) · 06 time (this PC's zone or a fixed offset)
+//   · 07 last build (PwBuildRecord) · 08 changelog (fold — this version's line, read from the README '변경 기록 / Changelog / 更新履歴'
 //   section). Fold state in EditorPrefs (Pyrite9PW.). Text follows the menu language. Tooltips start with the English name the README uses.
 //   Style: PulseWatchInspector.uss next to this script — without it everything still works (Unity's default look).
 //   Button groups, gauges, checks and the rows that show or hide with a setting refresh in place every 300 ms (rebuilding would
@@ -20,7 +21,7 @@ using VRC.SDK3.Avatars.Components;
 namespace Pyrite9.PulseWatch
 {
     [CustomEditor(typeof(PulseWatch))]
-    public class PulseWatchEditor : Editor
+    public partial class PulseWatchEditor : Editor
     {
         static readonly Color Gold = new Color32(0xE2, 0xCE, 0x74, 0xFF);
 
@@ -85,6 +86,8 @@ namespace Pyrite9.PulseWatch
             body.Add(AboutSection());
             body.Add(Divider());
             body.Add(BasicSection());
+            body.Add(Divider());
+            body.Add(MenuSection());
             body.Add(Divider());
             body.Add(IncludeSection());
             body.Add(Divider());
@@ -849,6 +852,11 @@ namespace Pyrite9.PulseWatch
                         + (rec.hour12 ? " · AM/PM" : ""), null));
                     grid.Add(Fact(T(lang, "Features", "機能", "기능"),
                         $"{rec.featuresOn} / 13" + (rec.debugMeter ? T(lang, " + debug meter", " + デバッグメーター", " + 디버그 막대") : ""), rec.debugMeter ? "pw-fact__value--gold" : null));
+                    // D75: where MA put the submenu (read from the built menu); empty = not found — the warning below says why.
+                    // Only when that check ran (an older record has no path and is not a missing menu)
+                    if (rec.menuChecked) grid.Add(Fact(T(lang, "Menu", "メニュー", "메뉴"),
+                        string.IsNullOrEmpty(rec.menuPath) ? T(lang, "not found", "見つかりません", "못 찾음") : rec.menuPath.Replace("/", " > "),
+                        string.IsNullOrEmpty(rec.menuPath) ? "pw-fact__value--warn" : null));
                     grid.Add(Fact(T(lang, "Synced", "同期", "동기화"), rec.syncedBits + " bit", null));
                     grid.Add(Fact(T(lang, "FX layers", "FX レイヤー", "FX 레이어"), rec.fxLayers.ToString(), null));
                     grid.Add(Fact(T(lang, "Contacts", "コンタクト", "Contact"), rec.contacts.ToString(), null));

@@ -65,6 +65,17 @@ namespace Pyrite9.PulseWatch
             InPhase(BuildPhase.Resolving)
                 .BeforePlugin("nadena.dev.modular-avatar")
                 .Run("Build pulse watch", Build);
+            // D75: where the 'Pulse Watch' submenu really went — read from the built menu, after MA installed it
+            InPhase(BuildPhase.Transforming)
+                .AfterPlugin("nadena.dev.modular-avatar")
+                .Run("Check pulse watch menu", CheckMenu);
+        }
+
+        /// <summary>one build's menu placement, Resolving -> Transforming (NDMF makes it new per build)</summary>
+        sealed class MenuState
+        {
+            public bool built;
+            public string target = "";   // where it was put: "" = the root, else the menu or MA Menu Item as in the log
         }
 
         static void Build(BuildContext ctx)
@@ -81,9 +92,10 @@ namespace Pyrite9.PulseWatch
             var target = watches.Length > 0 ? watches[0].transform : null;
             var hadKids = target == null ? null : new HashSet<Transform>(target.Cast<Transform>());
             var hadComps = target == null ? null : new HashSet<Component>(target.GetComponents<Component>());
+            var outside = new List<GameObject>();   // made outside the watch's object (the menu's install target, D75)
             try
             {
-                if (target != null) BuildOne(ctx, watches[0], log, rec);
+                if (target != null) BuildOne(ctx, watches[0], log, rec, outside);
             }
             catch (System.Exception e)
             {
@@ -96,19 +108,14 @@ namespace Pyrite9.PulseWatch
                 int n = 0;
                 foreach (var c in target.Cast<Transform>().Where(k => !hadKids.Contains(k)).ToList()) { Object.DestroyImmediate(c.gameObject); n++; }
                 foreach (var c in target.GetComponents<Component>().Where(k => !hadComps.Contains(k)).ToList()) { Object.DestroyImmediate(c); n++; }
+                foreach (var o in outside.Where(o => o != null)) { Object.DestroyImmediate(o); n++; }
                 if (n > 0) log.AppendLine($"not built — {n} objects / components made so far removed");
             }
             foreach (var w in all) Object.DestroyImmediate(w);
-            try
-            {
-                if (Directory.Exists("Logs"))
-                {
-                    // past LogLimit the log starts over; the previous one stays as .old (one generation)
-                    if (File.Exists(LogPath) && new FileInfo(LogPath).Length > LogLimit) { File.Copy(LogPath, LogPath + ".old", true); File.WriteAllText(LogPath, ""); }
-                    File.AppendAllText(LogPath, log.ToString());
-                }
-            }
-            catch (IOException e) { Debug.LogWarning("[Pyrite9 Pulse Watch] build log not written: " + e.Message); }
+            var ms = ctx.GetState<MenuState>();
+            ms.built = rec.built;
+            ms.target = rec.installTo ?? "";
+            WriteLog(log.ToString());
             // inspector 'Last build' (PwBuildRecord): WARN lines without the tag, and the first line of an exception
             if (watches.Length > 0)
             {
@@ -121,6 +128,74 @@ namespace Pyrite9.PulseWatch
             }
             foreach (var line in log.ToString().Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.StartsWith("WARN")))
                 Debug.LogWarning("[Pyrite9 Pulse Watch] " + line);
+        }
+
+        static void WriteLog(string text)
+        {
+            try
+            {
+                if (Directory.Exists("Logs"))
+                {
+                    // past LogLimit the log starts over; the previous one stays as .old (one generation)
+                    if (File.Exists(LogPath) && new FileInfo(LogPath).Length > LogLimit) { File.Copy(LogPath, LogPath + ".old", true); File.WriteAllText(LogPath, ""); }
+                    File.AppendAllText(LogPath, text);
+                }
+            }
+            catch (IOException e) { Debug.LogWarning("[Pyrite9 Pulse Watch] build log not written: " + e.Message); }
+        }
+
+        /// <summary>
+        /// D75: after MA, the built Expression Menu says where the 'Pulse Watch' submenu went (found by its Keep open toggle). MA leaves
+        /// a submenu out quietly when its Install to menu is not in the avatar's menu — warn here, and put the path in the record
+        /// </summary>
+        static void CheckMenu(BuildContext ctx)
+        {
+            var ms = ctx.GetState<MenuState>();
+            if (!ms.built) return;
+            var desc = ctx.AvatarRootObject.GetComponent<VRCAvatarDescriptor>();
+            if (desc == null) return;
+            var paths = FindWatchMenu(desc.expressionsMenu);
+            var log = new StringBuilder();
+            string where = ms.target.Length == 0 ? "the root" : ms.target;
+            if (paths.Count == 0)
+                log.AppendLine("WARN the 'Pulse Watch' submenu is not in the built Expression Menu" + (ms.target.Length == 0 ? "" : $" — Install to ({where}) is not a menu of this avatar"));
+            else
+            {
+                log.AppendLine($"menu (built): '{paths[0]}' (install to {where})");
+                if (paths.Count > 1) log.AppendLine($"WARN the 'Pulse Watch' submenu is in the built Expression Menu {paths.Count} times ({string.Join(", ", paths)})");
+            }
+            WriteLog(log.ToString());
+            var warns = log.ToString().Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.StartsWith("WARN ")).ToList();
+            foreach (var w in warns) Debug.LogWarning("[Pyrite9 Pulse Watch] " + w);
+            var rec = PwBuildRecord.Get(ctx.AvatarRootObject.name);
+            if (rec == null) return;
+            rec.menuChecked = true;
+            rec.menuPath = paths.Count > 0 ? paths[0] : "";
+            rec.warnings.AddRange(warns.Select(w => w.Substring(5)));
+            PwBuildRecord.Put(rec);
+        }
+
+        // every place in the menu tree holding the watch's submenu (the one with Keep open), as a path of control names — a menu
+        // reached from two places counts twice (the radial menu shows it in both); only a menu inside itself (a loop) is cut
+        internal static List<string> FindWatchMenu(VRCExpressionsMenu root)
+        {
+            var found = new List<string>();
+            var path = new HashSet<VRCExpressionsMenu>();
+            int budget = 20000;   // menus shared many times over could branch out — stop well before that matters
+            void Walk(VRCExpressionsMenu m, string at)
+            {
+                if (m == null || m.controls == null || found.Count > 16 || --budget < 0 || !path.Add(m)) return;
+                foreach (var c in m.controls)
+                {
+                    if (c == null || c.type != VRCExpressionsMenu.Control.ControlType.SubMenu || c.subMenu == null) continue;
+                    var p = at.Length == 0 ? c.name : at + "/" + c.name;
+                    if (c.subMenu.controls != null && c.subMenu.controls.Any(k => k != null && k.parameter != null && k.parameter.name == Manual)) found.Add(p);
+                    else Walk(c.subMenu, p);
+                }
+                path.Remove(m);
+            }
+            Walk(root, "");
+            return found;
         }
 
         // D72: the zone's daylight saving rule in force today, for the shader to switch by date (PulseWatchTime.cginc PwDst): each
@@ -173,7 +248,7 @@ namespace Pyrite9.PulseWatch
         static Color accent = Accent, wpColor = WaypointColor;
         static Color Opaque(Color c) { c.a = 1f; return c; }
 
-        static void BuildOne(BuildContext ctx, PulseWatch pw, StringBuilder log, PwBuildRecord.Entry rec)
+        static void BuildOne(BuildContext ctx, PulseWatch pw, StringBuilder log, PwBuildRecord.Entry rec, List<GameObject> outside)
         {
             var avatar = ctx.AvatarRootTransform;
             var root = pw.transform;
@@ -423,7 +498,7 @@ namespace Pyrite9.PulseWatch
                 ps.parameters.Add(Param(FlashPress, ParameterSyncType.NotSynced, 0f));
             }
 
-            BuildMenu(root, (int)pw.menuLanguage, wp, flash, pw.debugMeter, log);
+            rec.installTo = BuildMenu(root, avatar, pw, wp, flash, outside, log);
             Prewarm(root, anim, made, log);
 
             foreach (var o in made.Where(o => o != null && !EditorUtility.IsPersistent(o))) ctx.AssetSaver.SaveAsset(o);
@@ -1410,8 +1485,11 @@ namespace Pyrite9.PulseWatch
         //   Pulse Watch > Keep open · Waypoint > (Mark · Clear · Show to others) · Flashlight · Hide from others
         //               · Settings > (Sensitivity loose · strict · Wear on right wrist · Wear on inside of wrist · Debug meter)
         // — what is used while playing on the first page, what is set once under Settings; each page well inside VRChat's 8
-        static void BuildMenu(Transform root, int lang, bool wp, bool flash, bool debug, StringBuilder log)
+        // Returns where it was put ("" = the root) for the log and the record (D75)
+        static string BuildMenu(Transform root, Transform avatar, PulseWatch pw, bool wp, bool flash, List<GameObject> outside, StringBuilder log)
         {
+            int lang = (int)pw.menuLanguage;
+            bool debug = pw.debugMeter;
             string T(string en, string jp, string ko) => lang == 1 ? jp : lang == 2 ? ko : en;
             string iconDir = AssetDatabase.GUIDToAssetPath(MenuIconsGuid);
             int missing = 0;
@@ -1432,7 +1510,7 @@ namespace Pyrite9.PulseWatch
             }
             var menu = Sub("Pulse Watch", "watch", null);
             menu.SetParent(root, false);
-            menu.gameObject.AddComponent<ModularAvatarMenuInstaller>();
+            var installer = menu.gameObject.AddComponent<ModularAvatarMenuInstaller>();
 
             void Item(string label, string icon, string param, float value, bool saved, bool synced = false, bool button = false, Transform under = null)
             {
@@ -1467,6 +1545,60 @@ namespace Pyrite9.PulseWatch
             Item(T("Wear on inside of wrist", "手首の内側に着ける", "손목 안쪽에 차기"), "inside", Inside, 1f, true, true, under: set);   // D34
             if (debug) Item(T("Debug meter", "デバッグメーター", "디버그 막대"), "debug", DebugOn, 1f, true, under: set);
             if (missing > 0) log.AppendLine($"WARN {missing} menu icons missing (Textures/MenuIcons) — those controls have none");
+            var where = PlaceMenu(pw, avatar, menu, installer, outside, log);
+            log.AppendLine($"menu: 'Pulse Watch' to {(where.Length == 0 ? "the root" : where)} (D75)");
+            return where;
+        }
+
+        // MA's Menu Install Target is internal (MA 1.18): found by name — null if a later MA renames it
+        static readonly System.Type InstallTargetType = typeof(ModularAvatarMenuInstaller).Assembly.GetType("nadena.dev.modular_avatar.core.ModularAvatarMenuInstallTarget");
+
+        /// <summary>
+        /// D75: where the submenu goes — an MA Menu Item submenu (installToItem) first, then a menu asset (installTo), else the root.
+        /// Into a Menu Item: an MA Menu Install Target pointing at the installer, as a direct child of that item — a Children submenu
+        /// reads only its direct children, and MA takes an installer that has an install target out of the root. Without that
+        /// component the submenu object itself moves under the item (its installer removed), which MA reads the same way
+        /// </summary>
+        static string PlaceMenu(PulseWatch pw, Transform avatar, Transform menu, ModularAvatarMenuInstaller installer, List<GameObject> outside, StringBuilder log)
+        {
+            var item = pw.installToItem as ModularAvatarMenuItem;   // a Component field (no MA reference in the runtime assembly)
+            if (pw.installToItem != null && item == null)
+                log.AppendLine($"WARN Install to ('{pw.installToItem.name}') is not an MA Menu Item — " + (pw.installTo != null ? $"the menu '{pw.installTo.name}' used" : "the root used"));
+            if (item != null)
+            {
+                // a Children submenu reads the children of its own object, or of 'other object' when that is set — that object
+                // has to be in the avatar too: outside it (Build & Test's copy still points at the scene) the target would be
+                // made in the user's scene
+                var under = item.menuSource_otherObjectChildren != null ? item.menuSource_otherObjectChildren.transform : item.transform;
+                string bad = !item.transform.IsChildOf(avatar) ? "is not in this avatar"
+                    : item.transform.IsChildOf(pw.transform) ? "is inside the watch"
+                    : item.Control == null || item.Control.type != VRCExpressionsMenu.Control.ControlType.SubMenu || item.MenuSource != SubmenuSource.Children
+                        ? "is not a submenu with Submenu Source: Children"
+                    : !under.IsChildOf(avatar) || under.IsChildOf(pw.transform) ? $"reads the children of '{under.name}', which is not in this avatar (or is inside the watch)" : null;
+                if (bad == null)
+                {
+                    if (pw.installTo != null) log.AppendLine($"WARN both Install to menus are set ('{pw.installTo.name}' and the MA Menu Item '{item.name}') — the MA Menu Item is used");
+                    var field = InstallTargetType?.GetField("installer");
+                    if (field != null)
+                    {
+                        var go = new GameObject("Pulse Watch");
+                        go.transform.SetParent(under, false);
+                        outside.Add(go);
+                        field.SetValue(go.AddComponent(InstallTargetType), installer);
+                    }
+                    else
+                    {
+                        Object.DestroyImmediate(installer);
+                        menu.SetParent(under, false);
+                        outside.Add(menu.gameObject);
+                    }
+                    return $"MA Menu Item '{item.name}'";
+                }
+                log.AppendLine($"WARN the MA Menu Item '{item.name}' set as Install to {bad} — " + (pw.installTo != null ? $"the menu '{pw.installTo.name}' used" : "the root used"));
+            }
+            if (pw.installTo == null) return "";
+            installer.installTargetMenu = pw.installTo;   // outside the avatar's menu tree MA leaves it out quietly — CheckMenu says so
+            return $"menu '{pw.installTo.name}'";
         }
     }
 }
